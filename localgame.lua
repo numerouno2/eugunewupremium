@@ -4,6 +4,7 @@ local Games = {
   [8356562067] = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/indovoice", -- Indo Voice
   [85695526103771] = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/danauindo", -- Danau Voice
   [130342654546662] = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/Sambungkata", -- Sambung  Kata
+  [93978595733734] = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/ViolenceDistrict", -- Violence District
 }
 
 return Games
