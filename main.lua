@@ -1,445 +1,685 @@
--- ══════════════════════════════════════════════════════
---          EUGUNEWU PREMIUM - ANIMATED LOADER
--- ══════════════════════════════════════════════════════
+--[[
+    ╔══════════════════════════════════════════╗
+    ║           EUGUNEWU HUB LOADER           ║
+    ║         Premium Script Loader            ║
+    ╚══════════════════════════════════════════╝
+]]
 
+-- Services
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+
 local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+local gameId = game.PlaceId
 
--- ═══ CLEANUP OLD GUI ═══
-if playerGui:FindFirstChild("EugunewuLoader") then
-    playerGui:FindFirstChild("EugunewuLoader"):Destroy()
-end
+-- Games Database
+local Games = {
+    [83369512629707] = {
+        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/sawahindo.lua",
+        name = "Sawah Indo"
+    },
+    [131848958487439] = {
+        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/ruangriung.lua",
+        name = "Ruang Riung"
+    },
+    [8356562067] = {
+        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/indovoice.lua",
+        name = "Indo Voice"
+    },
+    [85695526103771] = {
+        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/danauindo.lua",
+        name = "Danau Voice"
+    },
+    [130342654546662] = {
+        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/Sambungkata.lua",
+        name = "Sambung Kata"
+    },
+    [93978595733734] = {
+        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/ViolenceDistrict.lua",
+        name = "Violence District"
+    },
+    [72774564502867] = {
+        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/Lengkapikata.lua",
+        name = "Lengkapi Kata"
+    },
+    [78632820802305] = {
+        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/IndoStrike.lua",
+        name = "Indo Strike"
+    },
+}
 
--- ═══ CREATE UI ═══
+-- Get current game data
+local currentGame = Games[gameId]
+local gameName = currentGame and currentGame.name or "Unknown"
+local scriptUrl = currentGame and currentGame.url or nil
+
+-- ═══════════════════════════════════════
+--          CLEANUP OLD GUI
+-- ═══════════════════════════════════════
+local oldGui = player:FindFirstChild("PlayerGui") and player.PlayerGui:FindFirstChild("EugunewuHub")
+if oldGui then oldGui:Destroy() end
+
+-- ═══════════════════════════════════════
+--          CREATE SCREEN GUI
+-- ═══════════════════════════════════════
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "EugunewuLoader"
+ScreenGui.Name = "EugunewuHub"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent = playerGui
+ScreenGui.IgnoreGuiInset = true
 
--- Dark overlay
+-- Try to parent to CoreGui first, fallback to PlayerGui
+local guiParent = (syn and syn.protect_gui) or (gethui and gethui()) or player.PlayerGui
+if syn and syn.protect_gui then
+    syn.protect_gui(ScreenGui)
+    ScreenGui.Parent = game:GetService("CoreGui")
+elseif gethui then
+    ScreenGui.Parent = gethui()
+else
+    ScreenGui.Parent = player.PlayerGui
+end
+
+-- ═══════════════════════════════════════
+--          HELPER FUNCTIONS
+-- ═══════════════════════════════════════
+local activeConnections = {}
+local activeTweens = {}
+
+local function tween(obj, props, duration, style, direction)
+    style = style or Enum.EasingStyle.Quint
+    direction = direction or Enum.EasingDirection.Out
+    local t = TweenService:Create(obj, TweenInfo.new(duration, style, direction), props)
+    t:Play()
+    table.insert(activeTweens, t)
+    return t
+end
+
+local function cleanupAll()
+    for _, conn in ipairs(activeConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    for _, tw in ipairs(activeTweens) do
+        pcall(function() tw:Cancel() end)
+    end
+    activeConnections = {}
+    activeTweens = {}
+end
+
+local function createCorner(parent, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    corner.Parent = parent
+    return corner
+end
+
+local function createStroke(parent, color, thickness, transparency)
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = color or Color3.fromRGB(130, 80, 255)
+    stroke.Thickness = thickness or 1.5
+    stroke.Transparency = transparency or 0.4
+    stroke.Parent = parent
+    return stroke
+end
+
+-- ═══════════════════════════════════════
+--          BACKGROUND OVERLAY
+-- ═══════════════════════════════════════
 local Overlay = Instance.new("Frame")
+Overlay.Name = "Overlay"
 Overlay.Size = UDim2.new(1, 0, 1, 0)
 Overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 Overlay.BackgroundTransparency = 1
 Overlay.BorderSizePixel = 0
-Overlay.ZIndex = 100
+Overlay.ZIndex = 1
 Overlay.Parent = ScreenGui
 
--- Main container
-local Container = Instance.new("Frame")
-Container.Size = UDim2.new(0, 420, 0, 220)
-Container.Position = UDim2.new(0.5, 0, 0.5, 0)
-Container.AnchorPoint = Vector2.new(0.5, 0.5)
-Container.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-Container.BackgroundTransparency = 1
-Container.BorderSizePixel = 0
-Container.ZIndex = 101
-Container.Parent = ScreenGui
+-- ═══════════════════════════════════════
+--          MAIN CONTAINER
+-- ═══════════════════════════════════════
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.new(0, 400, 0, 300)
+Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+Main.AnchorPoint = Vector2.new(0.5, 0.5)
+Main.BackgroundColor3 = Color3.fromRGB(12, 12, 22)
+Main.BorderSizePixel = 0
+Main.BackgroundTransparency = 1
+Main.ZIndex = 2
+Main.Parent = ScreenGui
 
-local ContainerCorner = Instance.new("UICorner")
-ContainerCorner.CornerRadius = UDim.new(0, 14)
-ContainerCorner.Parent = Container
+createCorner(Main, 14)
 
--- Container glow border
-local ContainerStroke = Instance.new("UIStroke")
-ContainerStroke.Color = Color3.fromRGB(100, 60, 255)
-ContainerStroke.Thickness = 2
-ContainerStroke.Transparency = 1
-ContainerStroke.Parent = Container
+local MainStroke = createStroke(Main, Color3.fromRGB(80, 50, 180), 1.5, 0.5)
 
--- Shadow behind container
-local Shadow = Instance.new("ImageLabel")
-Shadow.Name = "Shadow"
-Shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-Shadow.BackgroundTransparency = 1
-Shadow.Position = UDim2.new(0.5, 0, 0.5, 4)
-Shadow.Size = UDim2.new(1, 40, 1, 40)
-Shadow.ZIndex = 100
-Shadow.Image = "rbxassetid://6015897843"
-Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-Shadow.ImageTransparency = 1
-Shadow.ScaleType = Enum.ScaleType.Slice
-Shadow.SliceCenter = Rect.new(49, 49, 450, 450)
-Shadow.Parent = Container
+-- Clip container for particles
+Main.ClipsDescendants = true
 
--- ═══ LOGO ICON (Diamond shape) ═══
+-- ═══════════════════════════════════════
+--          TOP ACCENT LINE
+-- ═══════════════════════════════════════
+local AccentLine = Instance.new("Frame")
+AccentLine.Name = "AccentLine"
+AccentLine.Size = UDim2.new(1, 0, 0, 3)
+AccentLine.Position = UDim2.new(0, 0, 0, 0)
+AccentLine.BackgroundColor3 = Color3.fromRGB(130, 80, 255)
+AccentLine.BorderSizePixel = 0
+AccentLine.ZIndex = 5
+AccentLine.Parent = Main
+
+local AccentGradient = Instance.new("UIGradient")
+AccentGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 50, 255)),
+    ColorSequenceKeypoint.new(0.3, Color3.fromRGB(160, 80, 255)),
+    ColorSequenceKeypoint.new(0.7, Color3.fromRGB(255, 80, 180)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 180, 255)),
+})
+AccentGradient.Parent = AccentLine
+
+-- ═══════════════════════════════════════
+--          LOGO SECTION
+-- ═══════════════════════════════════════
 local LogoFrame = Instance.new("Frame")
-LogoFrame.Size = UDim2.new(0, 50, 0, 50)
-LogoFrame.Position = UDim2.new(0.5, 0, 0.08, 0)
+LogoFrame.Name = "LogoFrame"
+LogoFrame.Size = UDim2.new(0, 70, 0, 70)
+LogoFrame.Position = UDim2.new(0.5, 0, 0, 30)
 LogoFrame.AnchorPoint = Vector2.new(0.5, 0)
-LogoFrame.BackgroundColor3 = Color3.fromRGB(100, 60, 255)
 LogoFrame.BackgroundTransparency = 1
-LogoFrame.Rotation = 45
-LogoFrame.ZIndex = 102
-LogoFrame.Parent = Container
+LogoFrame.ZIndex = 5
+LogoFrame.Parent = Main
 
-local LogoCorner = Instance.new("UICorner")
-LogoCorner.CornerRadius = UDim.new(0, 8)
-LogoCorner.Parent = LogoFrame
+-- Outer Ring (will spin)
+local OuterRing = Instance.new("Frame")
+OuterRing.Name = "OuterRing"
+OuterRing.Size = UDim2.new(1, 6, 1, 6)
+OuterRing.Position = UDim2.new(0.5, 0, 0.5, 0)
+OuterRing.AnchorPoint = Vector2.new(0.5, 0.5)
+OuterRing.BackgroundTransparency = 1
+OuterRing.ZIndex = 5
+OuterRing.Parent = LogoFrame
 
-local LogoGradient = Instance.new("UIGradient")
-LogoGradient.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(130, 80, 255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 100, 255))
-}
-LogoGradient.Rotation = 45
-LogoGradient.Parent = LogoFrame
+local OuterRingStroke = createStroke(OuterRing, Color3.fromRGB(130, 80, 255), 2, 0.3)
+createCorner(OuterRing, 999)
 
-local LogoIcon = Instance.new("TextLabel")
-LogoIcon.Size = UDim2.new(1, 0, 1, 0)
-LogoIcon.BackgroundTransparency = 1
-LogoIcon.Text = "E"
-LogoIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
-LogoIcon.TextTransparency = 1
-LogoIcon.Font = Enum.Font.GothamBlack
-LogoIcon.TextSize = 22
-LogoIcon.Rotation = -45
-LogoIcon.ZIndex = 103
-LogoIcon.Parent = LogoFrame
+-- Inner Circle
+local InnerCircle = Instance.new("Frame")
+InnerCircle.Name = "InnerCircle"
+InnerCircle.Size = UDim2.new(0, 56, 0, 56)
+InnerCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+InnerCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+InnerCircle.BackgroundColor3 = Color3.fromRGB(20, 16, 40)
+InnerCircle.BorderSizePixel = 0
+InnerCircle.ZIndex = 6
+InnerCircle.Parent = LogoFrame
 
--- ═══ TITLE ═══
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 35)
-Title.Position = UDim2.new(0, 0, 0.38, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "EUGUNEWU PREMIUM"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextTransparency = 1
-Title.Font = Enum.Font.GothamBlack
-Title.TextSize = 24
-Title.ZIndex = 102
-Title.Parent = Container
+createCorner(InnerCircle, 999)
+createStroke(InnerCircle, Color3.fromRGB(100, 60, 220), 1.5, 0.5)
 
-local TitleStroke = Instance.new("UIStroke")
-TitleStroke.Color = Color3.fromRGB(100, 60, 255)
-TitleStroke.Thickness = 1
-TitleStroke.Transparency = 1
-TitleStroke.Parent = Title
+-- Logo Letter
+local LogoLetter = Instance.new("TextLabel")
+LogoLetter.Name = "LogoLetter"
+LogoLetter.Size = UDim2.new(1, 0, 1, 0)
+LogoLetter.BackgroundTransparency = 1
+LogoLetter.Text = "E"
+LogoLetter.TextColor3 = Color3.fromRGB(170, 130, 255)
+LogoLetter.TextSize = 28
+LogoLetter.Font = Enum.Font.GothamBold
+LogoLetter.ZIndex = 7
+LogoLetter.Parent = InnerCircle
 
--- ═══ SUBTITLE ═══
-local Subtitle = Instance.new("TextLabel")
-Subtitle.Size = UDim2.new(1, 0, 0, 18)
-Subtitle.Position = UDim2.new(0, 0, 0.52, 0)
-Subtitle.BackgroundTransparency = 1
-Subtitle.Text = "Premium Script Loader"
-Subtitle.TextColor3 = Color3.fromRGB(150, 140, 200)
-Subtitle.TextTransparency = 1
-Subtitle.Font = Enum.Font.Gotham
-Subtitle.TextSize = 13
-Subtitle.ZIndex = 102
-Subtitle.Parent = Container
+-- ═══════════════════════════════════════
+--          TEXT LABELS
+-- ═══════════════════════════════════════
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Name = "Title"
+TitleLabel.Size = UDim2.new(1, 0, 0, 30)
+TitleLabel.Position = UDim2.new(0, 0, 0, 108)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "EUGUNEWU HUB"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 24
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.ZIndex = 5
+TitleLabel.Parent = Main
 
--- ═══ LOADING BAR BACKGROUND ═══
-local LoadBarBG = Instance.new("Frame")
-LoadBarBG.Size = UDim2.new(0.75, 0, 0, 5)
-LoadBarBG.Position = UDim2.new(0.125, 0, 0.72, 0)
-LoadBarBG.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
-LoadBarBG.BackgroundTransparency = 1
-LoadBarBG.BorderSizePixel = 0
-LoadBarBG.ZIndex = 102
-LoadBarBG.Parent = Container
+local TitleGrad = Instance.new("UIGradient")
+TitleGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(150, 110, 255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(110, 190, 255)),
+})
+TitleGrad.Parent = TitleLabel
 
-local LoadBarBGCorner = Instance.new("UICorner")
-LoadBarBGCorner.CornerRadius = UDim.new(1, 0)
-LoadBarBGCorner.Parent = LoadBarBG
+local SubtitleLabel = Instance.new("TextLabel")
+SubtitleLabel.Name = "Subtitle"
+SubtitleLabel.Size = UDim2.new(1, 0, 0, 18)
+SubtitleLabel.Position = UDim2.new(0, 0, 0, 138)
+SubtitleLabel.BackgroundTransparency = 1
+SubtitleLabel.Text = "Premium Script Loader"
+SubtitleLabel.TextColor3 = Color3.fromRGB(120, 120, 160)
+SubtitleLabel.TextSize = 12
+SubtitleLabel.Font = Enum.Font.Gotham
+SubtitleLabel.ZIndex = 5
+SubtitleLabel.Parent = Main
 
--- Loading bar fill
-local LoadBarFill = Instance.new("Frame")
-LoadBarFill.Size = UDim2.new(0, 0, 1, 0)
-LoadBarFill.BackgroundColor3 = Color3.fromRGB(130, 80, 255)
-LoadBarFill.BackgroundTransparency = 1
-LoadBarFill.BorderSizePixel = 0
-LoadBarFill.ZIndex = 103
-LoadBarFill.Parent = LoadBarBG
+-- ═══════════════════════════════════════
+--          STATUS & PROGRESS
+-- ═══════════════════════════════════════
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "Status"
+StatusLabel.Size = UDim2.new(1, -60, 0, 20)
+StatusLabel.Position = UDim2.new(0.5, 0, 0, 175)
+StatusLabel.AnchorPoint = Vector2.new(0.5, 0)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Initializing..."
+StatusLabel.TextColor3 = Color3.fromRGB(190, 190, 220)
+StatusLabel.TextSize = 13
+StatusLabel.Font = Enum.Font.GothamMedium
+StatusLabel.ZIndex = 5
+StatusLabel.Parent = Main
 
-local LoadBarFillCorner = Instance.new("UICorner")
-LoadBarFillCorner.CornerRadius = UDim.new(1, 0)
-LoadBarFillCorner.Parent = LoadBarFill
+-- Progress Background
+local ProgressBG = Instance.new("Frame")
+ProgressBG.Name = "ProgressBG"
+ProgressBG.Size = UDim2.new(1, -60, 0, 8)
+ProgressBG.Position = UDim2.new(0.5, 0, 0, 202)
+ProgressBG.AnchorPoint = Vector2.new(0.5, 0)
+ProgressBG.BackgroundColor3 = Color3.fromRGB(25, 25, 45)
+ProgressBG.BorderSizePixel = 0
+ProgressBG.ZIndex = 5
+ProgressBG.Parent = Main
 
-local BarGradient = Instance.new("UIGradient")
-BarGradient.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(100, 60, 255)),
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(180, 100, 255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 200, 255))
-}
-BarGradient.Parent = LoadBarFill
+createCorner(ProgressBG, 999)
 
--- ═══ STATUS TEXT ═══
-local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1, 0, 0, 18)
-Status.Position = UDim2.new(0, 0, 0.83, 0)
-Status.BackgroundTransparency = 1
-Status.Text = ""
-Status.TextColor3 = Color3.fromRGB(170, 165, 210)
-Status.TextTransparency = 1
-Status.Font = Enum.Font.Gotham
-Status.TextSize = 11
-Status.ZIndex = 102
-Status.Parent = Container
+-- Progress Fill
+local ProgressFill = Instance.new("Frame")
+ProgressFill.Name = "Fill"
+ProgressFill.Size = UDim2.new(0, 0, 1, 0)
+ProgressFill.BackgroundColor3 = Color3.fromRGB(120, 70, 255)
+ProgressFill.BorderSizePixel = 0
+ProgressFill.ZIndex = 6
+ProgressFill.Parent = ProgressBG
 
--- ═══ PARTICLES (floating dots) ═══
-local particles = {}
-for i = 1, 12 do
-    local dot = Instance.new("Frame")
-    dot.Size = UDim2.new(0, math.random(2, 4), 0, math.random(2, 4))
-    dot.Position = UDim2.new(math.random() * 0.9 + 0.05, 0, math.random() * 0.8 + 0.1, 0)
-    dot.BackgroundColor3 = Color3.fromRGB(130, 80, 255)
-    dot.BackgroundTransparency = 1
-    dot.BorderSizePixel = 0
-    dot.ZIndex = 102
-    dot.Parent = Container
-    
-    local dotCorner = Instance.new("UICorner")
-    dotCorner.CornerRadius = UDim.new(1, 0)
-    dotCorner.Parent = dot
-    
-    table.insert(particles, dot)
-end
+createCorner(ProgressFill, 999)
 
--- ═══ TWEEN HELPER ═══
-local function tween(obj, props, duration, style, direction)
-    local t = TweenService:Create(
-        obj,
-        TweenInfo.new(
-            duration or 0.5,
-            style or Enum.EasingStyle.Quint,
-            direction or Enum.EasingDirection.Out
-        ),
-        props
-    )
-    t:Play()
-    return t
-end
+local FillGradient = Instance.new("UIGradient")
+FillGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(90, 50, 255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(170, 90, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(90, 170, 255)),
+})
+FillGradient.Parent = ProgressFill
 
-local function setProgress(pct, text, col)
-    if text then Status.Text = text end
-    if col then tween(Status, {TextColor3 = col}, 0.3) end
-    tween(LoadBarFill, {Size = UDim2.new(pct, 0, 1, 0)}, 0.6, Enum.EasingStyle.Quad)
-end
+-- Progress Shimmer
+local Shimmer = Instance.new("Frame")
+Shimmer.Name = "Shimmer"
+Shimmer.Size = UDim2.new(0.3, 0, 1, 0)
+Shimmer.Position = UDim2.new(-0.3, 0, 0, 0)
+Shimmer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Shimmer.BackgroundTransparency = 0.85
+Shimmer.BorderSizePixel = 0
+Shimmer.ZIndex = 7
+Shimmer.Parent = ProgressFill
 
--- ═══ ANIMATE PARTICLES ═══
-local particleConnection
-particleConnection = RunService.Heartbeat:Connect(function(dt)
-    for _, dot in ipairs(particles) do
-        if dot.BackgroundTransparency < 1 then
-            dot.Position = UDim2.new(
-                dot.Position.X.Scale,
-                dot.Position.X.Offset,
-                dot.Position.Y.Scale - dt * 0.02,
-                0
-            )
-            if dot.Position.Y.Scale < 0 then
-                dot.Position = UDim2.new(
-                    math.random() * 0.9 + 0.05, 0,
-                    1, 0
-                )
-            end
-        end
-    end
-end)
+createCorner(Shimmer, 999)
 
--- ══════════════════════════════════════════════════════
---              ANIMATION SEQUENCE START
--- ══════════════════════════════════════════════════════
+-- Percentage
+local PercentLabel = Instance.new("TextLabel")
+PercentLabel.Name = "Percent"
+PercentLabel.Size = UDim2.new(1, -60, 0, 18)
+PercentLabel.Position = UDim2.new(0.5, 0, 0, 214)
+PercentLabel.AnchorPoint = Vector2.new(0.5, 0)
+PercentLabel.BackgroundTransparency = 1
+PercentLabel.Text = "0%"
+PercentLabel.TextColor3 = Color3.fromRGB(120, 80, 255)
+PercentLabel.TextSize = 11
+PercentLabel.Font = Enum.Font.GothamBold
+PercentLabel.TextXAlignment = Enum.TextXAlignment.Right
+PercentLabel.ZIndex = 5
+PercentLabel.Parent = Main
 
--- Phase 1: Fade in overlay
-tween(Overlay, {BackgroundTransparency = 0.4}, 0.6)
-task.wait(0.4)
+-- ═══════════════════════════════════════
+--          SEPARATOR & FOOTER
+-- ═══════════════════════════════════════
+local Sep = Instance.new("Frame")
+Sep.Name = "Separator"
+Sep.Size = UDim2.new(1, -60, 0, 1)
+Sep.Position = UDim2.new(0.5, 0, 0, 245)
+Sep.AnchorPoint = Vector2.new(0.5, 0)
+Sep.BackgroundColor3 = Color3.fromRGB(40, 40, 70)
+Sep.BackgroundTransparency = 0.5
+Sep.BorderSizePixel = 0
+Sep.ZIndex = 5
+Sep.Parent = Main
 
--- Phase 2: Container appear (scale effect)
-Container.Size = UDim2.new(0, 380, 0, 200)
-tween(Container, {BackgroundTransparency = 0, Size = UDim2.new(0, 420, 0, 220)}, 0.5, Enum.EasingStyle.Back)
-tween(ContainerStroke, {Transparency = 0.5}, 0.5)
-tween(Shadow, {ImageTransparency = 0.5}, 0.5)
-task.wait(0.3)
+local PlayerInfo = Instance.new("TextLabel")
+PlayerInfo.Name = "PlayerInfo"
+PlayerInfo.Size = UDim2.new(0.5, -30, 0, 16)
+PlayerInfo.Position = UDim2.new(0, 30, 0, 255)
+PlayerInfo.BackgroundTransparency = 1
+PlayerInfo.Text = "User: " .. player.Name
+PlayerInfo.TextColor3 = Color3.fromRGB(100, 100, 140)
+PlayerInfo.TextSize = 10
+PlayerInfo.Font = Enum.Font.Gotham
+PlayerInfo.TextXAlignment = Enum.TextXAlignment.Left
+PlayerInfo.TextTruncate = Enum.TextTruncate.AtEnd
+PlayerInfo.ZIndex = 5
+PlayerInfo.Parent = Main
 
--- Phase 3: Logo appear (spin in)
-LogoFrame.Rotation = 0
-tween(LogoFrame, {BackgroundTransparency = 0, Rotation = 45}, 0.6, Enum.EasingStyle.Back)
-tween(LogoIcon, {TextTransparency = 0}, 0.4)
-task.wait(0.3)
+local GameInfo = Instance.new("TextLabel")
+GameInfo.Name = "GameInfo"
+GameInfo.Size = UDim2.new(0.5, -30, 0, 16)
+GameInfo.Position = UDim2.new(1, -30, 0, 255)
+GameInfo.AnchorPoint = Vector2.new(1, 0)
+GameInfo.BackgroundTransparency = 1
+GameInfo.Text = "Game: " .. gameName
+GameInfo.TextColor3 = Color3.fromRGB(100, 100, 140)
+GameInfo.TextSize = 10
+GameInfo.Font = Enum.Font.Gotham
+GameInfo.TextXAlignment = Enum.TextXAlignment.Right
+GameInfo.TextTruncate = Enum.TextTruncate.AtEnd
+GameInfo.ZIndex = 5
+GameInfo.Parent = Main
 
--- Phase 4: Title slide in
-Title.Position = UDim2.new(0, 0, 0.42, 0)
-tween(Title, {TextTransparency = 0, Position = UDim2.new(0, 0, 0.38, 0)}, 0.5)
-tween(TitleStroke, {Transparency = 0.6}, 0.5)
-task.wait(0.2)
+local VersionInfo = Instance.new("TextLabel")
+VersionInfo.Name = "Version"
+VersionInfo.Size = UDim2.new(1, -60, 0, 16)
+VersionInfo.Position = UDim2.new(0.5, 0, 0, 274)
+VersionInfo.AnchorPoint = Vector2.new(0.5, 0)
+VersionInfo.BackgroundTransparency = 1
+VersionInfo.Text = "v2.1.0"
+VersionInfo.TextColor3 = Color3.fromRGB(70, 70, 100)
+VersionInfo.TextSize = 9
+VersionInfo.Font = Enum.Font.Gotham
+VersionInfo.ZIndex = 5
+VersionInfo.Parent = Main
 
--- Phase 5: Subtitle fade
-tween(Subtitle, {TextTransparency = 0}, 0.4)
-task.wait(0.2)
+-- ═══════════════════════════════════════
+--          FLOATING PARTICLES
+-- ═══════════════════════════════════════
+local function spawnParticle()
+    pcall(function()
+        local p = Instance.new("Frame")
+        local s = math.random(2, 4)
+        p.Size = UDim2.new(0, s, 0, s)
+        p.Position = UDim2.new(math.random(5, 95) / 100, 0, 1.05, 0)
+        p.BackgroundColor3 = Color3.fromRGB(
+            math.random(80, 160),
+            math.random(50, 120),
+            255
+        )
+        p.BackgroundTransparency = math.random(50, 80) / 100
+        p.BorderSizePixel = 0
+        p.ZIndex = 3
+        p.Parent = Main
+        createCorner(p, 999)
 
--- Phase 6: Loading bar appear
-tween(LoadBarBG, {BackgroundTransparency = 0}, 0.3)
-tween(LoadBarFill, {BackgroundTransparency = 0}, 0.3)
-tween(Status, {TextTransparency = 0}, 0.3)
-task.wait(0.2)
+        local dur = math.random(25, 50) / 10
+        local t = tween(p, {
+            Position = UDim2.new(p.Position.X.Scale + (math.random(-15, 15) / 100), 0, -0.05, 0),
+            BackgroundTransparency = 1
+        }, dur, Enum.EasingStyle.Linear)
 
--- Phase 7: Show particles
-for _, dot in ipairs(particles) do
-    task.defer(function()
-        task.wait(math.random() * 0.5)
-        tween(dot, {BackgroundTransparency = math.random() * 0.4 + 0.5}, 0.5)
+        t.Completed:Connect(function()
+            p:Destroy()
+        end)
     end)
 end
 
--- ══════════════════════════════════════════════════════
---                  LOADING LOGIC
--- ══════════════════════════════════════════════════════
+-- ═══════════════════════════════════════
+--          PROGRESS FUNCTION
+-- ═══════════════════════════════════════
+local function setProgress(percent, status)
+    if status then
+        StatusLabel.Text = status
+    end
+    PercentLabel.Text = math.floor(percent) .. "%"
+    tween(ProgressFill, {
+        Size = UDim2.new(math.clamp(percent / 100, 0, 1), 0, 1, 0)
+    }, 0.4, Enum.EasingStyle.Quart)
+end
 
-setProgress(0.15, "⚙️  Initializing loader...")
-task.wait(0.6)
+-- ═══════════════════════════════════════
+--          ANIMATIONS START
+-- ═══════════════════════════════════════
 
-setProgress(0.30, "📡  Fetching script database...")
-task.wait(0.4)
+-- Ring spin
+local spinAngle = 0
+local spinConn = RunService.Heartbeat:Connect(function(dt)
+    spinAngle = (spinAngle + dt * 90) % 360
+    OuterRing.Rotation = spinAngle
+    AccentGradient.Rotation = (AccentGradient.Rotation + dt * 40) % 360
+end)
+table.insert(activeConnections, spinConn)
 
--- Load game list
-local success, Games = pcall(function()
-    return loadstring(game:HttpGet(
-        "https://raw.githubusercontent.com/numerouno2/eugunewupremium/refs/heads/main/localgame.lua"
-    ))()
+-- Shimmer loop
+local shimmerConn
+local function shimmerLoop()
+    shimmerConn = RunService.Heartbeat:Connect(function(dt)
+        -- Handled by tween below
+    end)
+    table.insert(activeConnections, shimmerConn)
+
+    while ScreenGui and ScreenGui.Parent do
+        Shimmer.Position = UDim2.new(-0.3, 0, 0, 0)
+        local t = tween(Shimmer, {Position = UDim2.new(1.1, 0, 0, 0)}, 1.2, Enum.EasingStyle.Linear)
+        task.wait(1.8)
+    end
+end
+task.spawn(shimmerLoop)
+
+-- Particle spawner
+local particleTimer = 0
+local particleConn = RunService.Heartbeat:Connect(function(dt)
+    particleTimer = particleTimer + dt
+    if particleTimer >= 0.4 then
+        particleTimer = 0
+        spawnParticle()
+    end
+end)
+table.insert(activeConnections, particleConn)
+
+-- Logo pulse
+task.spawn(function()
+    while ScreenGui and ScreenGui.Parent do
+        tween(InnerCircle, {Size = UDim2.new(0, 60, 0, 60)}, 0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+        task.wait(0.7)
+        tween(InnerCircle, {Size = UDim2.new(0, 54, 0, 54)}, 0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+        task.wait(0.7)
+    end
 end)
 
-if not success then
-    setProgress(1, "❌  Failed to fetch database!", Color3.fromRGB(255, 80, 80))
-    task.wait(2)
-    
-    -- Fade out
-    tween(Overlay, {BackgroundTransparency = 1}, 0.5)
-    tween(Container, {BackgroundTransparency = 1}, 0.5)
-    tween(ContainerStroke, {Transparency = 1}, 0.3)
-    tween(Shadow, {ImageTransparency = 1}, 0.3)
-    tween(Title, {TextTransparency = 1}, 0.3)
-    tween(TitleStroke, {Transparency = 1}, 0.3)
-    tween(Subtitle, {TextTransparency = 1}, 0.3)
-    tween(LogoFrame, {BackgroundTransparency = 1}, 0.3)
-    tween(LogoIcon, {TextTransparency = 1}, 0.3)
-    tween(LoadBarBG, {BackgroundTransparency = 1}, 0.3)
-    tween(LoadBarFill, {BackgroundTransparency = 1}, 0.3)
-    tween(Status, {TextTransparency = 1}, 0.3)
-    for _, dot in ipairs(particles) do
-        tween(dot, {BackgroundTransparency = 1}, 0.3)
+-- ═══════════════════════════════════════
+--          INTRO ANIMATION
+-- ═══════════════════════════════════════
+Main.Size = UDim2.new(0, 400, 0, 0)
+Main.BackgroundTransparency = 1
+
+-- Make all text invisible initially
+for _, obj in pairs(Main:GetDescendants()) do
+    if obj:IsA("TextLabel") then
+        obj.TextTransparency = 1
+    elseif obj:IsA("Frame") and obj.Name ~= "Main" then
+        if obj.BackgroundTransparency < 0.5 then
+            obj.BackgroundTransparency = 1
+        end
     end
-    task.wait(0.6)
-    particleConnection:Disconnect()
-    ScreenGui:Destroy()
-    return
 end
 
-setProgress(0.50, "🔍  Searching for game script...")
+-- Fade overlay
+tween(Overlay, {BackgroundTransparency = 0.4}, 0.6, Enum.EasingStyle.Quad)
+task.wait(0.2)
+
+-- Expand main
+tween(Main, {
+    Size = UDim2.new(0, 400, 0, 300),
+    BackgroundTransparency = 0
+}, 0.7, Enum.EasingStyle.Back)
+task.wait(0.4)
+
+-- Fade in all elements
+for _, obj in pairs(Main:GetDescendants()) do
+    if obj:IsA("TextLabel") then
+        tween(obj, {TextTransparency = 0}, 0.5)
+    end
+end
+
+tween(AccentLine, {BackgroundTransparency = 0}, 0.4)
+tween(InnerCircle, {BackgroundTransparency = 0}, 0.4)
+tween(ProgressBG, {BackgroundTransparency = 0}, 0.4)
+tween(Sep, {BackgroundTransparency = 0.5}, 0.4)
+
 task.wait(0.5)
 
-local URL = Games[game.GameId]
-local scriptFound = false
+-- ═══════════════════════════════════════
+--          LOADING SEQUENCE
+-- ═══════════════════════════════════════
 
-if URL then
-    scriptFound = true
-    setProgress(0.70, "✅  Game detected! (GameId match)")
-    task.wait(0.5)
-else
-    setProgress(0.55, "🔄  Trying PlaceId lookup...")
-    task.wait(0.4)
-    
-    URL = Games[game.PlaceId]
-    if URL then
-        scriptFound = true
-        setProgress(0.70, "✅  Game detected! (PlaceId match)")
-        task.wait(0.5)
+local function exitAnimation(callback)
+    -- Stop animations
+    cleanupAll()
+
+    -- Fade everything out
+    for _, obj in pairs(Main:GetDescendants()) do
+        pcall(function()
+            if obj:IsA("TextLabel") then
+                tween(obj, {TextTransparency = 1}, 0.3)
+            elseif obj:IsA("Frame") then
+                tween(obj, {BackgroundTransparency = 1}, 0.3)
+            end
+        end)
+    end
+
+    task.wait(0.2)
+
+    tween(Main, {
+        Size = UDim2.new(0, 400, 0, 0),
+        BackgroundTransparency = 1
+    }, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+
+    tween(Overlay, {BackgroundTransparency = 1}, 0.6)
+
+    task.wait(0.7)
+
+    ScreenGui:Destroy()
+
+    if callback then
+        callback()
     end
 end
 
-if scriptFound then
-    -- ═══ SUCCESS ═══
-    setProgress(0.85, "⚡  Downloading script...")
+local function showSuccess(name)
+    tween(ProgressFill, {BackgroundColor3 = Color3.fromRGB(60, 200, 100)}, 0.4)
+    tween(OuterRingStroke, {Color = Color3.fromRGB(60, 200, 100)}, 0.4)
+    tween(LogoLetter, {TextColor3 = Color3.fromRGB(60, 200, 100)}, 0.4)
+    LogoLetter.Text = "✓"
+    LogoLetter.TextSize = 26
+    StatusLabel.TextColor3 = Color3.fromRGB(60, 200, 100)
+    StatusLabel.Text = "Loaded: " .. name
+end
+
+local function showError(msg)
+    tween(ProgressFill, {BackgroundColor3 = Color3.fromRGB(220, 60, 60)}, 0.4)
+    tween(OuterRingStroke, {Color = Color3.fromRGB(220, 60, 60)}, 0.4)
+    tween(LogoLetter, {TextColor3 = Color3.fromRGB(220, 60, 60)}, 0.4)
+    LogoLetter.Text = "!"
+    LogoLetter.TextSize = 30
+    StatusLabel.TextColor3 = Color3.fromRGB(220, 100, 100)
+    StatusLabel.Text = msg
+end
+
+-- ═══════════════════════════════════════
+--          MAIN LOADING LOGIC
+-- ═══════════════════════════════════════
+
+if scriptUrl then
+    -- ===== SUPPORTED GAME =====
+    setProgress(5, "Detecting game...")
+    task.wait(0.6)
+
+    setProgress(15, "Found: " .. gameName)
     task.wait(0.5)
-    
-    setProgress(1.0, "🚀  Launching Eugunewu Premium!")
-    tween(ContainerStroke, {Color = Color3.fromRGB(80, 255, 120), Transparency = 0.2}, 0.4)
-    tween(LoadBarFill, {BackgroundColor3 = Color3.fromRGB(80, 255, 120)}, 0.3)
-    task.wait(1)
-    
-    -- ═══ FADE OUT ANIMATION ═══
-    -- Title flies up
-    tween(Title, {TextTransparency = 1, Position = UDim2.new(0, 0, 0.30, 0)}, 0.4)
-    tween(TitleStroke, {Transparency = 1}, 0.3)
-    tween(Subtitle, {TextTransparency = 1}, 0.3)
-    task.wait(0.1)
-    
-    -- Logo spins out
-    tween(LogoFrame, {BackgroundTransparency = 1, Rotation = 405}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-    tween(LogoIcon, {TextTransparency = 1}, 0.3)
-    task.wait(0.1)
-    
-    -- Bar and status fade
-    tween(LoadBarBG, {BackgroundTransparency = 1}, 0.3)
-    tween(LoadBarFill, {BackgroundTransparency = 1}, 0.3)
-    tween(Status, {TextTransparency = 1}, 0.3)
-    task.wait(0.1)
-    
-    -- Particles fade
-    for _, dot in ipairs(particles) do
-        tween(dot, {BackgroundTransparency = 1}, 0.3)
+
+    setProgress(30, "Connecting to server...")
+    task.wait(0.6)
+
+    setProgress(45, "Downloading script...")
+    task.wait(0.5)
+
+    -- Actually fetch the script
+    local scriptContent = nil
+    local fetchSuccess, fetchError = pcall(function()
+        setProgress(55, "Fetching data...")
+        scriptContent = game:HttpGet(scriptUrl, true)
+    end)
+
+    if not fetchSuccess or not scriptContent or #scriptContent < 10 then
+        setProgress(100, "")
+        task.wait(0.2)
+        showError("Download failed!")
+        task.wait(2.5)
+        exitAnimation()
+        return
     end
-    task.wait(0.2)
-    
-    -- Container shrink out
-    tween(Container, {
-        BackgroundTransparency = 1,
-        Size = UDim2.new(0, 380, 0, 200)
-    }, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-    tween(ContainerStroke, {Transparency = 1}, 0.3)
-    tween(Shadow, {ImageTransparency = 1}, 0.3)
+
+    setProgress(70, "Verifying integrity...")
+    task.wait(0.4)
+
+    setProgress(85, "Compiling...")
     task.wait(0.3)
-    
-    -- Overlay fade
-    tween(Overlay, {BackgroundTransparency = 1}, 0.5)
-    task.wait(0.5)
-    
-    -- Cleanup
-    particleConnection:Disconnect()
-    ScreenGui:Destroy()
-    
-    -- ═══ EXECUTE SCRIPT ═══
-    loadstring(game:HttpGet(URL))()
-    
+
+    -- Compile the script
+    local compiledFunc, compileError = loadstring(scriptContent)
+
+    if not compiledFunc then
+        setProgress(100, "")
+        task.wait(0.2)
+        showError("Compile error!")
+        warn("[EUGUNEWU HUB] Compile Error: " .. tostring(compileError))
+        task.wait(2.5)
+        exitAnimation()
+        return
+    end
+
+    setProgress(95, "Preparing launch...")
+    task.wait(0.3)
+
+    setProgress(100, "Ready!")
+    task.wait(0.3)
+
+    showSuccess(gameName)
+    task.wait(1.2)
+
+    -- Exit and execute
+    exitAnimation(function()
+        -- Execute script after UI is gone
+        local execSuccess, execError = pcall(compiledFunc)
+        if not execSuccess then
+            warn("[EUGUNEWU HUB] Execution Error: " .. tostring(execError))
+        end
+    end)
+
 else
-    -- ═══ GAME NOT FOUND ═══
-    setProgress(1.0, "❌  Game tidak terdaftar!", Color3.fromRGB(255, 80, 80))
-    tween(ContainerStroke, {Color = Color3.fromRGB(255, 60, 60), Transparency = 0.2}, 0.4)
-    task.wait(1.5)
-    
-    local gameId = tostring(game.GameId)
-    local placeId = tostring(game.PlaceId)
-    Status.Text = "GameId: " .. gameId .. "  |  PlaceId: " .. placeId
-    warn("❌ Game tidak terdaftar!")
-    warn("GameId: " .. gameId)
-    warn("PlaceId: " .. placeId)
-    task.wait(3)
-    
-    -- Fade out
-    tween(Title, {TextTransparency = 1}, 0.3)
-    tween(TitleStroke, {Transparency = 1}, 0.3)
-    tween(Subtitle, {TextTransparency = 1}, 0.3)
-    tween(LogoFrame, {BackgroundTransparency = 1}, 0.3)
-    tween(LogoIcon, {TextTransparency = 1}, 0.3)
-    tween(LoadBarBG, {BackgroundTransparency = 1}, 0.3)
-    tween(LoadBarFill, {BackgroundTransparency = 1}, 0.3)
-    tween(Status, {TextTransparency = 1}, 0.3)
-    for _, dot in ipairs(particles) do
-        tween(dot, {BackgroundTransparency = 1}, 0.3)
-    end
-    task.wait(0.2)
-    tween(Container, {BackgroundTransparency = 1}, 0.4)
-    tween(ContainerStroke, {Transparency = 1}, 0.3)
-    tween(Shadow, {ImageTransparency = 1}, 0.3)
-    task.wait(0.3)
-    tween(Overlay, {BackgroundTransparency = 1}, 0.5)
+    -- ===== UNSUPPORTED GAME =====
+    setProgress(10, "Detecting game...")
+    task.wait(0.6)
+
+    setProgress(30, "Searching database...")
+    task.wait(0.6)
+
+    setProgress(60, "Checking compatibility...")
     task.wait(0.5)
-    
-    particleConnection:Disconnect()
-    ScreenGui:Destroy()
+
+    setProgress(100, "")
+    task.wait(0.3)
+
+    showError("Game not supported!")
+    task.wait(0.5)
+
+    StatusLabel.TextSize = 11
+    StatusLabel.Text = "Game ID " .. tostring(gameId) .. " is not in database"
+
+    task.wait(3)
+
+    exitAnimation()
 end
