@@ -1,710 +1,866 @@
 --[[
-    ╔══════════════════════════════════════════╗
-    ║           EUGUNEWU HUB LOADER           ║
-    ║         Premium Script Loader            ║
-    ╚══════════════════════════════════════════╝
+    ╔══════════════════════════════════════════════════╗
+    ║  EUGUNEWU://LOADER_v3.0 [VOID PREMIUM]         ║
+    ║  Visible Loading • Smooth • Instant Execute     ║
+    ╚══════════════════════════════════════════════════╝
 ]]
 
--- Services
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
+local TS = game:GetService("TweenService")
+local RS = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
 
-local player = Players.LocalPlayer
+local plr = Players.LocalPlayer
 local gameId = game.PlaceId
 
--- Games Database
 local Games = {
-    [83369512629707] = {
-        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/sawahindo.lua",
-        name = "Sawah Indo"
-    },
-    [131848958487439] = {
-        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/ruangriung.lua",
-        name = "Ruang Riung"
-    },
-    [8356562067] = {
-        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/indovoice.lua",
-        name = "Indo Voice"
-    },
-    [85695526103771] = {
-        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/danauindo.lua",
-        name = "Danau Voice"
-    },
-    [130342654546662] = {
-        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/Sambungkata.lua",
-        name = "Sambung Kata"
-    },
-    [93978595733734] = {
-        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/ViolenceDistrict.lua",
-        name = "Violence District"
-    },
-    [72774564502867] = {
-        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/Lengkapikata.lua",
-        name = "Lengkapi Kata"
-    },
-    [78632820802305] = {
-        url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/IndoStrike.lua",
-        name = "Indo Strike"
-    },
+    [83369512629707]  = { url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/sawahindo.lua", name = "Sawah Indo" },
+    [131848958487439] = { url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/ruangriung.lua", name = "Ruang Riung" },
+    [8356562067]      = { url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/indovoice.lua", name = "Indo Voice" },
+    [85695526103771]  = { url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/danauindo.lua", name = "Danau Voice" },
+    [130342654546662] = { url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/Sambungkata.lua", name = "Sambung Kata" },
+    [93978595733734]  = { url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/ViolenceDistrict.lua", name = "Violence District" },
+    [72774564502867]  = { url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/Lengkapikata.lua", name = "Lengkapi Kata" },
+    [78632820802305]  = { url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/IndoStrike.lua", name = "Indo Strike" },
 }
 
-local currentGame = Games[gameId]
-local gameName = currentGame and currentGame.name or "Unknown"
-local scriptUrl = currentGame and currentGame.url or nil
+local cur = Games[gameId]
+local gameName = cur and cur.name or "Unknown"
+local scriptUrl = cur and cur.url or nil
 
--- Cleanup
-local oldGui = player:FindFirstChild("PlayerGui") and player.PlayerGui:FindFirstChild("EugunewuHub")
-if oldGui then oldGui:Destroy() end
+local mob = UIS.TouchEnabled and not UIS.KeyboardEnabled
+if not mob and UIS.TouchEnabled then
+    local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
+    mob = math.min(vp.X, vp.Y) < 600
+end
 
--- ════════════════════════════════════
---     PRE-FETCH SCRIPT IMMEDIATELY
--- ════════════════════════════════════
-local scriptContent = nil
-local compiledFunc = nil
-local fetchDone = false
-local fetchFailed = false
-local fetchErrorMsg = ""
+local C = {
+    bg       = Color3.fromRGB(8, 5, 14),
+    bgDeep   = Color3.fromRGB(4, 2, 8),
+    card     = Color3.fromRGB(18, 12, 28),
+    surface  = Color3.fromRGB(14, 9, 22),
+    accent   = Color3.fromRGB(160, 120, 220),
+    accentHi = Color3.fromRGB(200, 165, 255),
+    accentLo = Color3.fromRGB(80, 55, 120),
+    accentDp = Color3.fromRGB(55, 35, 95),
+    cyan     = Color3.fromRGB(80, 200, 240),
+    magenta  = Color3.fromRGB(220, 80, 180),
+    text     = Color3.fromRGB(210, 195, 235),
+    textHi   = Color3.fromRGB(242, 235, 255),
+    textLo   = Color3.fromRGB(100, 80, 135),
+    textDk   = Color3.fromRGB(50, 38, 68),
+    border   = Color3.fromRGB(45, 32, 65),
+    ok       = Color3.fromRGB(80, 220, 140),
+    err      = Color3.fromRGB(220, 70, 80),
+    warn     = Color3.fromRGB(220, 180, 70),
+}
+
+-- ═══════════════════════════
+-- PRE-FETCH
+-- ═══════════════════════════
+local compiled, fetchDone, fetchErr = nil, false, nil
+local fetchPhase = "idle" -- idle → connecting → downloading → compiling → done
 
 if scriptUrl then
     task.spawn(function()
-        local ok, err = pcall(function()
-            scriptContent = game:HttpGet(scriptUrl, true)
+        fetchPhase = "connecting"
+        task.wait(.1)
+        fetchPhase = "downloading"
+        local ok, e = pcall(function()
+            local src = game:HttpGet(scriptUrl, true)
+            if not src or #src < 10 then error("empty response") end
+            fetchPhase = "compiling"
+            local fn, ce = loadstring(src)
+            if not fn then error(ce or "compile fail") end
+            compiled = fn
         end)
-        if not ok or not scriptContent or #scriptContent < 10 then
-            fetchFailed = true
-            fetchErrorMsg = "Download failed"
-        else
-            local func, cerr = loadstring(scriptContent)
-            if func then
-                compiledFunc = func
-            else
-                fetchFailed = true
-                fetchErrorMsg = "Compile error"
-                warn("[EUGUNEWU HUB] Compile Error: " .. tostring(cerr))
-            end
-        end
+        if not ok then fetchErr = tostring(e):sub(1, 60) end
+        fetchPhase = "done"
         fetchDone = true
     end)
 end
 
--- ════════════════════════════════════
---          CREATE GUI
--- ════════════════════════════════════
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "EugunewuHub"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.IgnoreGuiInset = true
+-- Cleanup
+pcall(function()
+    for _, v in ipairs(game:GetService("CoreGui"):GetChildren()) do
+        if v.Name == "EugunewuLoader" then v:Destroy() end
+    end
+    local pg = plr:FindFirstChild("PlayerGui")
+    if pg then for _, v in ipairs(pg:GetChildren()) do
+            if v.Name == "EugunewuLoader" then v:Destroy() end
+        end end
+end)
 
-if syn and syn.protect_gui then
-    syn.protect_gui(ScreenGui)
-    ScreenGui.Parent = game:GetService("CoreGui")
-elseif gethui then
-    ScreenGui.Parent = gethui()
-else
-    ScreenGui.Parent = player.PlayerGui
-end
+-- ═══════════════════════════
+-- SCREENGUI
+-- ═══════════════════════════
+local SG = Instance.new("ScreenGui")
+SG.Name = "EugunewuLoader"
+SG.ResetOnSpawn = false
+SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+SG.IgnoreGuiInset = true
+SG.DisplayOrder = 999
+pcall(function() SG.Parent = game:GetService("CoreGui") end)
+if not SG.Parent then SG.Parent = plr:WaitForChild("PlayerGui") end
 
--- Helpers
-local activeConnections = {}
-local activeTweens = {}
 local alive = true
+local conns = {}
 
-local function tw(obj, props, duration, style, direction)
-    style = style or Enum.EasingStyle.Quint
-    direction = direction or Enum.EasingDirection.Out
-    local t = TweenService:Create(obj, TweenInfo.new(duration, style, direction), props)
+local function tw(o, p, d, s, dir)
+    if mob then d = (d or .3) * .7 end
+    local t = TS:Create(o, TweenInfo.new(d or .3, s or Enum.EasingStyle.Quint, dir or Enum.EasingDirection.Out), p)
     t:Play()
-    table.insert(activeTweens, t)
     return t
 end
 
-local function cleanupAll()
-    alive = false
-    for _, c in ipairs(activeConnections) do pcall(function() c:Disconnect() end) end
-    for _, t in ipairs(activeTweens) do pcall(function() t:Cancel() end) end
-    activeConnections = {}
-    activeTweens = {}
+local function corner(p, r)
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, r or 8); c.Parent = p
 end
 
-local function createCorner(p, r)
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, r or 8)
-    c.Parent = p
-    return c
-end
-
-local function createStroke(p, col, thick, trans)
+local function stroke(p, col, th, tr)
     local s = Instance.new("UIStroke")
-    s.Color = col or Color3.fromRGB(130, 80, 255)
-    s.Thickness = thick or 1.5
-    s.Transparency = trans or 0.4
-    s.Parent = p
+    s.Color = col or C.accent; s.Thickness = th or 1; s.Transparency = tr or .4
+    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; s.Parent = p
     return s
 end
 
--- ════════════════════════════════════
---          OVERLAY
--- ════════════════════════════════════
-local Overlay = Instance.new("Frame")
-Overlay.Size = UDim2.new(1, 0, 1, 0)
-Overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-Overlay.BackgroundTransparency = 1
-Overlay.BorderSizePixel = 0
-Overlay.ZIndex = 1
-Overlay.Parent = ScreenGui
+local function mkLabel(parent, props)
+    local l = Instance.new("TextLabel")
+    l.BackgroundTransparency = 1
+    l.Font = props.Font or Enum.Font.Code
+    l.Text = props.Text or ""
+    l.TextColor3 = props.Color or C.text
+    l.TextSize = props.Size or 12
+    l.TextStrokeTransparency = 1
+    l.ZIndex = props.Z or 20
+    l.TextXAlignment = props.AlignX or Enum.TextXAlignment.Center
+    l.TextWrapped = props.Wrap or false
+    l.RichText = props.Rich or false
+    l.TextTruncate = props.Truncate or Enum.TextTruncate.None
+    if props.UDim2Size then l.Size = props.UDim2Size end
+    if props.UDim2Pos then l.Position = props.UDim2Pos end
+    if props.Anchor then l.AnchorPoint = props.Anchor end
+    l.Parent = parent
+    return l
+end
 
--- ════════════════════════════════════
---          MAIN FRAME
--- ════════════════════════════════════
-local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 420, 0, 310)
-Main.Position = UDim2.new(0.5, 0, 0.5, 0)
-Main.AnchorPoint = Vector2.new(0.5, 0.5)
-Main.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
-Main.BorderSizePixel = 0
-Main.BackgroundTransparency = 1
-Main.ZIndex = 2
-Main.ClipsDescendants = true
-Main.Parent = ScreenGui
-createCorner(Main, 16)
-local MainStroke = createStroke(Main, Color3.fromRGB(90, 60, 200), 2, 0.3)
+local W = mob and 340 or 480
+local H = mob and 360 or 400
 
--- Inner glow
-local InnerGlow = Instance.new("Frame")
-InnerGlow.Size = UDim2.new(1, -4, 1, -4)
-InnerGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
-InnerGlow.AnchorPoint = Vector2.new(0.5, 0.5)
-InnerGlow.BackgroundTransparency = 1
-InnerGlow.BorderSizePixel = 0
-InnerGlow.ZIndex = 2
-InnerGlow.Parent = Main
-createCorner(InnerGlow, 14)
-createStroke(InnerGlow, Color3.fromRGB(60, 40, 140), 1, 0.6)
+-- ═══════════════════════════
+-- OVERLAY
+-- ═══════════════════════════
+local overlay = Instance.new("Frame")
+overlay.Size = UDim2.new(1, 0, 1, 0)
+overlay.BackgroundColor3 = C.bgDeep
+overlay.BackgroundTransparency = 1
+overlay.BorderSizePixel = 0
+overlay.ZIndex = 1
+overlay.Parent = SG
 
--- ════════════════════════════════════
---       TOP & BOTTOM ACCENT LINES
--- ════════════════════════════════════
-local AccentLine = Instance.new("Frame")
-AccentLine.Size = UDim2.new(1, 0, 0, 3)
-AccentLine.Position = UDim2.new(0, 0, 0, 0)
-AccentLine.BackgroundColor3 = Color3.fromRGB(130, 80, 255)
-AccentLine.BorderSizePixel = 0
-AccentLine.ZIndex = 5
-AccentLine.BackgroundTransparency = 1
-AccentLine.Parent = Main
+-- ═══════════════════════════
+-- MAIN FRAME
+-- ═══════════════════════════
+local main = Instance.new("Frame")
+main.Size = UDim2.new(0, W, 0, H)
+main.Position = UDim2.new(.5, 0, .5, 0)
+main.AnchorPoint = Vector2.new(.5, .5)
+main.BackgroundColor3 = C.bg
+main.BorderSizePixel = 0
+main.ZIndex = 10
+main.ClipsDescendants = true
+main.Visible = false
+main.Parent = SG
+corner(main, mob and 12 or 16)
+local mainStk = stroke(main, C.accent, 2, .2)
 
-local AccentGradient = Instance.new("UIGradient")
-AccentGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 30, 255)),
-    ColorSequenceKeypoint.new(0.2, Color3.fromRGB(130, 60, 255)),
-    ColorSequenceKeypoint.new(0.4, Color3.fromRGB(255, 60, 200)),
-    ColorSequenceKeypoint.new(0.6, Color3.fromRGB(60, 200, 255)),
-    ColorSequenceKeypoint.new(0.8, Color3.fromRGB(130, 60, 255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(60, 30, 255)),
+local innerBdr = Instance.new("Frame")
+innerBdr.Size = UDim2.new(1, -6, 1, -6)
+innerBdr.Position = UDim2.new(.5, 0, .5, 0)
+innerBdr.AnchorPoint = Vector2.new(.5, .5)
+innerBdr.BackgroundTransparency = 1
+innerBdr.ZIndex = 10
+innerBdr.Parent = main
+corner(innerBdr, mob and 10 or 14)
+stroke(innerBdr, C.accentDp, 1, .55)
+
+-- Top line
+local topLine = Instance.new("Frame")
+topLine.Size = UDim2.new(1, 0, 0, 3)
+topLine.BackgroundColor3 = Color3.new(1, 1, 1)
+topLine.BorderSizePixel = 0
+topLine.ZIndex = 50
+topLine.Parent = main
+
+local topGrad = Instance.new("UIGradient")
+topGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, C.accentDp),
+    ColorSequenceKeypoint.new(.15, C.accent),
+    ColorSequenceKeypoint.new(.35, C.magenta),
+    ColorSequenceKeypoint.new(.5, C.cyan),
+    ColorSequenceKeypoint.new(.65, C.magenta),
+    ColorSequenceKeypoint.new(.85, C.accent),
+    ColorSequenceKeypoint.new(1, C.accentDp),
 })
-AccentGradient.Parent = AccentLine
+topGrad.Parent = topLine
 
-local BottomLine = Instance.new("Frame")
-BottomLine.Size = UDim2.new(1, 0, 0, 2)
-BottomLine.Position = UDim2.new(0, 0, 1, -2)
-BottomLine.BackgroundColor3 = Color3.fromRGB(130, 80, 255)
-BottomLine.BorderSizePixel = 0
-BottomLine.ZIndex = 5
-BottomLine.BackgroundTransparency = 1
-BottomLine.Parent = Main
+local botLine = Instance.new("Frame")
+botLine.Size = UDim2.new(1, 0, 0, 2)
+botLine.Position = UDim2.new(0, 0, 1, -2)
+botLine.BackgroundColor3 = Color3.new(1, 1, 1)
+botLine.BackgroundTransparency = .3
+botLine.BorderSizePixel = 0
+botLine.ZIndex = 50
+botLine.Parent = main
 
-local BottomGradient = Instance.new("UIGradient")
-BottomGradient.Color = AccentGradient.Color
-BottomGradient.Parent = BottomLine
+local botGrad = Instance.new("UIGradient")
+botGrad.Color = topGrad.Color
+botGrad.Parent = botLine
 
--- ════════════════════════════════════
---          LOGO
--- ════════════════════════════════════
-local LogoFrame = Instance.new("Frame")
-LogoFrame.Size = UDim2.new(0, 72, 0, 72)
-LogoFrame.Position = UDim2.new(0.5, 0, 0, 28)
-LogoFrame.AnchorPoint = Vector2.new(0.5, 0)
-LogoFrame.BackgroundTransparency = 1
-LogoFrame.ZIndex = 5
-LogoFrame.Parent = Main
+-- ═══════════════════════════
+-- HEADER
+-- ═══════════════════════════
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 32)
+header.Position = UDim2.new(0, 0, 0, 3)
+header.BackgroundColor3 = C.surface
+header.BackgroundTransparency = .25
+header.BorderSizePixel = 0
+header.ZIndex = 20
+header.Parent = main
 
-local OuterRing = Instance.new("Frame")
-OuterRing.Size = UDim2.new(1, 10, 1, 10)
-OuterRing.Position = UDim2.new(0.5, 0, 0.5, 0)
-OuterRing.AnchorPoint = Vector2.new(0.5, 0.5)
-OuterRing.BackgroundTransparency = 1
-OuterRing.ZIndex = 5
-OuterRing.Parent = LogoFrame
-createCorner(OuterRing, 999)
-local OuterRingStroke = createStroke(OuterRing, Color3.fromRGB(130, 80, 255), 2.5, 0.15)
+local badge = Instance.new("Frame")
+badge.Size = UDim2.new(0, 40, 0, 16)
+badge.Position = UDim2.new(0, 8, .5, -8)
+badge.BackgroundColor3 = C.accent
+badge.BackgroundTransparency = .78
+badge.ZIndex = 21
+badge.Parent = header
+corner(badge, 3)
 
-local OuterRing2 = Instance.new("Frame")
-OuterRing2.Size = UDim2.new(1, 20, 1, 20)
-OuterRing2.Position = UDim2.new(0.5, 0, 0.5, 0)
-OuterRing2.AnchorPoint = Vector2.new(0.5, 0.5)
-OuterRing2.BackgroundTransparency = 1
-OuterRing2.ZIndex = 4
-OuterRing2.Parent = LogoFrame
-createCorner(OuterRing2, 999)
-createStroke(OuterRing2, Color3.fromRGB(80, 50, 180), 1, 0.6)
+mkLabel(badge, { Text = "[SYS]", Color = C.accent, Size = 8, Z = 22, UDim2Size = UDim2.new(1, 0, 1, 0) })
 
-local InnerCircle = Instance.new("Frame")
-InnerCircle.Size = UDim2.new(0, 58, 0, 58)
-InnerCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
-InnerCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-InnerCircle.BackgroundColor3 = Color3.fromRGB(18, 14, 38)
-InnerCircle.BorderSizePixel = 0
-InnerCircle.ZIndex = 6
-InnerCircle.BackgroundTransparency = 1
-InnerCircle.Parent = LogoFrame
-createCorner(InnerCircle, 999)
-createStroke(InnerCircle, Color3.fromRGB(110, 70, 230), 1.5, 0.4)
-
-local LogoLetter = Instance.new("TextLabel")
-LogoLetter.Size = UDim2.new(1, 0, 1, 0)
-LogoLetter.BackgroundTransparency = 1
-LogoLetter.Text = "E"
-LogoLetter.TextColor3 = Color3.fromRGB(180, 140, 255)
-LogoLetter.TextSize = 28
-LogoLetter.Font = Enum.Font.GothamBold
-LogoLetter.ZIndex = 7
-LogoLetter.TextTransparency = 1
-LogoLetter.Parent = InnerCircle
-
--- ════════════════════════════════════
---          LABELS
--- ════════════════════════════════════
-local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(1, 0, 0, 30)
-TitleLabel.Position = UDim2.new(0, 0, 0, 108)
-TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "EUGUNEWU HUB"
-TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleLabel.TextSize = 24
-TitleLabel.Font = Enum.Font.GothamBold
-TitleLabel.ZIndex = 5
-TitleLabel.TextTransparency = 1
-TitleLabel.Parent = Main
-
-local TitleGrad = Instance.new("UIGradient")
-TitleGrad.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(150, 110, 255)),
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(110, 190, 255)),
+mkLabel(header, {
+    Text = "EUGUNEWU://LOADER_v3.0",
+    Color = C.textLo, Size = mob and 9 or 11, Z = 21,
+    UDim2Size = UDim2.new(1, -58, 1, 0),
+    UDim2Pos = UDim2.new(0, 52, 0, 0),
+    AlignX = Enum.TextXAlignment.Left,
 })
-TitleGrad.Parent = TitleLabel
 
-local SubtitleLabel = Instance.new("TextLabel")
-SubtitleLabel.Size = UDim2.new(1, 0, 0, 18)
-SubtitleLabel.Position = UDim2.new(0, 0, 0, 138)
-SubtitleLabel.BackgroundTransparency = 1
-SubtitleLabel.Text = "Premium Script Loader"
-SubtitleLabel.TextColor3 = Color3.fromRGB(120, 120, 160)
-SubtitleLabel.TextSize = 12
-SubtitleLabel.Font = Enum.Font.Gotham
-SubtitleLabel.ZIndex = 5
-SubtitleLabel.TextTransparency = 1
-SubtitleLabel.Parent = Main
-
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(1, -60, 0, 20)
-StatusLabel.Position = UDim2.new(0.5, 0, 0, 172)
-StatusLabel.AnchorPoint = Vector2.new(0.5, 0)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Initializing..."
-StatusLabel.TextColor3 = Color3.fromRGB(190, 190, 220)
-StatusLabel.TextSize = 13
-StatusLabel.Font = Enum.Font.GothamMedium
-StatusLabel.ZIndex = 5
-StatusLabel.TextTransparency = 1
-StatusLabel.Parent = Main
-
--- ════════════════════════════════════
---       PROGRESS BAR (UPGRADED)
--- ════════════════════════════════════
-local ProgressBG = Instance.new("Frame")
-ProgressBG.Size = UDim2.new(1, -60, 0, 10)
-ProgressBG.Position = UDim2.new(0.5, 0, 0, 200)
-ProgressBG.AnchorPoint = Vector2.new(0.5, 0)
-ProgressBG.BackgroundColor3 = Color3.fromRGB(20, 18, 40)
-ProgressBG.BorderSizePixel = 0
-ProgressBG.ZIndex = 5
-ProgressBG.BackgroundTransparency = 1
-ProgressBG.Parent = Main
-createCorner(ProgressBG, 999)
-createStroke(ProgressBG, Color3.fromRGB(50, 40, 100), 1, 0.5)
-
-local ProgressFill = Instance.new("Frame")
-ProgressFill.Size = UDim2.new(0, 0, 1, 0)
-ProgressFill.BackgroundColor3 = Color3.fromRGB(120, 70, 255)
-ProgressFill.BorderSizePixel = 0
-ProgressFill.ZIndex = 6
-ProgressFill.ClipsDescendants = true
-ProgressFill.Parent = ProgressBG
-createCorner(ProgressFill, 999)
-
-local FillGradient = Instance.new("UIGradient")
-FillGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 40, 255)),
-    ColorSequenceKeypoint.new(0.3, Color3.fromRGB(140, 70, 255)),
-    ColorSequenceKeypoint.new(0.6, Color3.fromRGB(200, 80, 220)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 200, 255)),
+local blinkLbl = mkLabel(header, {
+    Text = "▌", Color = C.accent, Size = mob and 10 or 13, Z = 21,
+    UDim2Size = UDim2.new(0, 10, 1, 0),
+    UDim2Pos = UDim2.new(0, mob and 188 or 232, 0, 0),
 })
-FillGradient.Parent = ProgressFill
 
--- Top glow on bar
-local ProgressGlow = Instance.new("Frame")
-ProgressGlow.Size = UDim2.new(1, 0, 0.45, 0)
-ProgressGlow.Position = UDim2.new(0, 0, 0, 0)
-ProgressGlow.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-ProgressGlow.BackgroundTransparency = 0.75
-ProgressGlow.BorderSizePixel = 0
-ProgressGlow.ZIndex = 7
-ProgressGlow.Parent = ProgressFill
-createCorner(ProgressGlow, 999)
+local statusDot = Instance.new("Frame")
+statusDot.Size = UDim2.new(0, 8, 0, 8)
+statusDot.Position = UDim2.new(1, -16, .5, -4)
+statusDot.BackgroundColor3 = C.accent
+statusDot.BorderSizePixel = 0
+statusDot.ZIndex = 22
+statusDot.Parent = header
+corner(statusDot, 99)
 
--- Shimmer
-local Shimmer = Instance.new("Frame")
-Shimmer.Size = UDim2.new(0.15, 0, 1, 0)
-Shimmer.Position = UDim2.new(-0.2, 0, 0, 0)
-Shimmer.BackgroundTransparency = 1
-Shimmer.BorderSizePixel = 0
-Shimmer.ZIndex = 8
-Shimmer.Parent = ProgressFill
-createCorner(Shimmer, 999)
+mkLabel(header, {
+    Text = string.rep("─", 120), Color = C.border, Size = 5, Z = 20,
+    UDim2Size = UDim2.new(1, -12, 0, 6),
+    UDim2Pos = UDim2.new(0, 6, 1, -5),
+    AlignX = Enum.TextXAlignment.Left,
+    Truncate = Enum.TextTruncate.AtEnd,
+})
 
-local ShimmerGrad = Instance.new("UIGradient")
-ShimmerGrad.Transparency = NumberSequence.new({
+-- ═══════════════════════════
+-- LOGO
+-- ═══════════════════════════
+local logoFrame = Instance.new("Frame")
+logoFrame.Size = UDim2.new(0, 88, 0, 88)
+logoFrame.Position = UDim2.new(.5, 0, 0, mob and 42 or 48)
+logoFrame.AnchorPoint = Vector2.new(.5, 0)
+logoFrame.BackgroundTransparency = 1
+logoFrame.ZIndex = 20
+logoFrame.Parent = main
+
+local function mkRing(expand, thick, trans, z, col)
+    local r = Instance.new("Frame")
+    r.Size = UDim2.new(1, expand, 1, expand)
+    r.Position = UDim2.new(.5, 0, .5, 0)
+    r.AnchorPoint = Vector2.new(.5, .5)
+    r.BackgroundTransparency = 1
+    r.ZIndex = z
+    r.Parent = logoFrame
+    corner(r, 999)
+    return r, stroke(r, col or C.accent, thick, trans)
+end
+
+local ring3, ring3s = mkRing(30, 1, .8, 17, C.accentDp)
+local ring2, ring2s = mkRing(18, 1.5, .6, 18, C.accentLo)
+local ring1, ring1s = mkRing(8, 2.5, .15, 19)
+
+local circle = Instance.new("Frame")
+circle.Size = UDim2.new(0, 66, 0, 66)
+circle.Position = UDim2.new(.5, 0, .5, 0)
+circle.AnchorPoint = Vector2.new(.5, .5)
+circle.BackgroundColor3 = C.card
+circle.BorderSizePixel = 0
+circle.ZIndex = 22
+circle.Parent = logoFrame
+corner(circle, 999)
+local circleS = stroke(circle, C.accent, 1.5, .25)
+
+local innerGlow = Instance.new("Frame")
+innerGlow.Size = UDim2.new(1, -10, 1, -10)
+innerGlow.Position = UDim2.new(.5, 0, .5, 0)
+innerGlow.AnchorPoint = Vector2.new(.5, .5)
+innerGlow.BackgroundColor3 = C.accent
+innerGlow.BackgroundTransparency = .9
+innerGlow.BorderSizePixel = 0
+innerGlow.ZIndex = 23
+innerGlow.Parent = circle
+corner(innerGlow, 999)
+
+local logoE = mkLabel(circle, {
+    Text = "E", Color = C.accentHi,
+    Size = mob and 28 or 32, Z = 25,
+    UDim2Size = UDim2.new(1, 0, 1, 0),
+    Font = Enum.Font.GothamBold,
+})
+
+-- ═══════════════════════════
+-- TITLE
+-- ═══════════════════════════
+local tY = mob and 138 or 148
+
+local titleLbl = mkLabel(main, {
+    Text = "EUGUNEWU HUB", Color = C.textHi,
+    Size = mob and 20 or 26, Z = 20,
+    UDim2Size = UDim2.new(1, 0, 0, 30),
+    UDim2Pos = UDim2.new(0, 0, 0, tY),
+    Font = Enum.Font.GothamBold,
+})
+
+local titGrad = Instance.new("UIGradient")
+titGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, C.accent),
+    ColorSequenceKeypoint.new(.3, C.textHi),
+    ColorSequenceKeypoint.new(.7, C.textHi),
+    ColorSequenceKeypoint.new(1, C.cyan),
+})
+titGrad.Parent = titleLbl
+
+mkLabel(main, {
+    Text = "[ PREMIUM VOID EDITION ]", Color = C.textLo,
+    Size = mob and 8 or 10, Z = 20,
+    UDim2Size = UDim2.new(1, 0, 0, 14),
+    UDim2Pos = UDim2.new(0, 0, 0, tY + 30),
+})
+
+-- ═══════════════════════════
+-- TERMINAL LOG
+-- ═══════════════════════════
+local logY = mob and 180 or 198
+
+local logBg = Instance.new("Frame")
+logBg.Size = UDim2.new(1, -36, 0, mob and 55 or 65)
+logBg.Position = UDim2.new(.5, 0, 0, logY)
+logBg.AnchorPoint = Vector2.new(.5, 0)
+logBg.BackgroundColor3 = C.bgDeep
+logBg.BorderSizePixel = 0
+logBg.ZIndex = 20
+logBg.ClipsDescendants = true
+logBg.Parent = main
+corner(logBg, 6)
+stroke(logBg, C.border, 1, .45)
+
+local logHdr = Instance.new("Frame")
+logHdr.Size = UDim2.new(1, 0, 0, 14)
+logHdr.BackgroundColor3 = C.surface
+logHdr.BackgroundTransparency = .4
+logHdr.BorderSizePixel = 0
+logHdr.ZIndex = 21
+logHdr.Parent = logBg
+
+mkLabel(logHdr, {
+    Text = " ▸ SYSTEM LOG", Color = C.accentLo, Size = 7, Z = 22,
+    UDim2Size = UDim2.new(1, 0, 1, 0),
+    AlignX = Enum.TextXAlignment.Left,
+})
+
+local logLbl = mkLabel(logBg, {
+    Text = "", Color = C.textLo, Size = mob and 7 or 8, Z = 21,
+    UDim2Size = UDim2.new(1, -10, 1, -18),
+    UDim2Pos = UDim2.new(0, 5, 0, 16),
+    AlignX = Enum.TextXAlignment.Left,
+    Wrap = true, Rich = true,
+})
+logLbl.TextYAlignment = Enum.TextYAlignment.Bottom
+
+local logArr = {}
+local maxL = mob and 4 or 5
+
+local function addLog(txt, col)
+    local hex = (col or C.textLo):ToHex()
+    table.insert(logArr, '<font color="#' .. hex .. '">' .. txt .. '</font>')
+    if #logArr > maxL then table.remove(logArr, 1) end
+    logLbl.Text = table.concat(logArr, "\n")
+end
+
+-- ═══════════════════════════
+-- STATUS
+-- ═══════════════════════════
+local sY = mob and 242 or 272
+
+local statusLbl = mkLabel(main, {
+    Text = "", Color = C.text,
+    Size = mob and 10 or 12, Z = 20,
+    UDim2Size = UDim2.new(1, -36, 0, 18),
+    UDim2Pos = UDim2.new(.5, 0, 0, sY),
+    Anchor = Vector2.new(.5, 0),
+})
+
+-- ═══════════════════════════
+-- PROGRESS BAR
+-- ═══════════════════════════
+local bY = mob and 264 or 296
+
+local barBg = Instance.new("Frame")
+barBg.Size = UDim2.new(1, -36, 0, mob and 8 or 10)
+barBg.Position = UDim2.new(.5, 0, 0, bY)
+barBg.AnchorPoint = Vector2.new(.5, 0)
+barBg.BackgroundColor3 = C.surface
+barBg.BorderSizePixel = 0
+barBg.ZIndex = 20
+barBg.Parent = main
+corner(barBg, 999)
+stroke(barBg, C.border, 1, .45)
+
+local barFill = Instance.new("Frame")
+barFill.Size = UDim2.new(0, 0, 1, 0)
+barFill.BackgroundColor3 = C.accent
+barFill.BorderSizePixel = 0
+barFill.ZIndex = 22
+barFill.ClipsDescendants = true
+barFill.Parent = barBg
+corner(barFill, 999)
+
+local barGrad = Instance.new("UIGradient")
+barGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, C.accentLo),
+    ColorSequenceKeypoint.new(.35, C.accent),
+    ColorSequenceKeypoint.new(.65, C.magenta),
+    ColorSequenceKeypoint.new(1, C.cyan),
+})
+barGrad.Parent = barFill
+
+local barHl = Instance.new("Frame")
+barHl.Size = UDim2.new(1, 0, .35, 0)
+barHl.BackgroundColor3 = Color3.new(1, 1, 1)
+barHl.BackgroundTransparency = .78
+barHl.BorderSizePixel = 0
+barHl.ZIndex = 23
+barHl.Parent = barFill
+corner(barHl, 999)
+
+local shimmer = Instance.new("Frame")
+shimmer.Size = UDim2.new(.12, 0, 1, 0)
+shimmer.Position = UDim2.new(-.15, 0, 0, 0)
+shimmer.BackgroundColor3 = Color3.new(1, 1, 1)
+shimmer.BackgroundTransparency = .7
+shimmer.BorderSizePixel = 0
+shimmer.ZIndex = 24
+shimmer.Parent = barFill
+corner(shimmer, 999)
+
+local pctLbl = mkLabel(main, {
+    Text = "0%", Color = C.accent,
+    Size = mob and 8 or 9, Z = 20,
+    UDim2Size = UDim2.new(1, -36, 0, 14),
+    UDim2Pos = UDim2.new(.5, 0, 0, bY + (mob and 10 or 12)),
+    Anchor = Vector2.new(.5, 0),
+    AlignX = Enum.TextXAlignment.Right,
+})
+
+-- ═══════════════════════════
+-- FOOTER
+-- ═══════════════════════════
+local sepY = mob and 290 or 322
+
+local sep = Instance.new("Frame")
+sep.Size = UDim2.new(1, -56, 0, 1)
+sep.Position = UDim2.new(.5, 0, 0, sepY)
+sep.AnchorPoint = Vector2.new(.5, 0)
+sep.BackgroundColor3 = C.border
+sep.BackgroundTransparency = .35
+sep.BorderSizePixel = 0
+sep.ZIndex = 20
+sep.Parent = main
+
+local sepG = Instance.new("UIGradient")
+sepG.Transparency = NumberSequence.new({
     NumberSequenceKeypoint.new(0, 1),
-    NumberSequenceKeypoint.new(0.4, 0.6),
-    NumberSequenceKeypoint.new(0.5, 0.5),
-    NumberSequenceKeypoint.new(0.6, 0.6),
+    NumberSequenceKeypoint.new(.15, .25),
+    NumberSequenceKeypoint.new(.85, .25),
     NumberSequenceKeypoint.new(1, 1),
 })
-ShimmerGrad.Parent = Shimmer
+sepG.Parent = sep
 
-local PercentLabel = Instance.new("TextLabel")
-PercentLabel.Size = UDim2.new(1, -60, 0, 18)
-PercentLabel.Position = UDim2.new(0.5, 0, 0, 214)
-PercentLabel.AnchorPoint = Vector2.new(0.5, 0)
-PercentLabel.BackgroundTransparency = 1
-PercentLabel.Text = "0%"
-PercentLabel.TextColor3 = Color3.fromRGB(140, 100, 255)
-PercentLabel.TextSize = 11
-PercentLabel.Font = Enum.Font.GothamBold
-PercentLabel.TextXAlignment = Enum.TextXAlignment.Right
-PercentLabel.ZIndex = 5
-PercentLabel.TextTransparency = 1
-PercentLabel.Parent = Main
+local fY = mob and 296 or 330
 
--- ════════════════════════════════════
---          FOOTER
--- ════════════════════════════════════
-local Sep = Instance.new("Frame")
-Sep.Size = UDim2.new(1, -60, 0, 1)
-Sep.Position = UDim2.new(0.5, 0, 0, 248)
-Sep.AnchorPoint = Vector2.new(0.5, 0)
-Sep.BackgroundColor3 = Color3.fromRGB(50, 40, 90)
-Sep.BackgroundTransparency = 1
-Sep.BorderSizePixel = 0
-Sep.ZIndex = 5
-Sep.Parent = Main
-
-local SepGrad = Instance.new("UIGradient")
-SepGrad.Transparency = NumberSequence.new({
-    NumberSequenceKeypoint.new(0, 1),
-    NumberSequenceKeypoint.new(0.2, 0.3),
-    NumberSequenceKeypoint.new(0.8, 0.3),
-    NumberSequenceKeypoint.new(1, 1),
+mkLabel(main, {
+    Text = "▸ " .. plr.Name, Color = C.textDk,
+    Size = mob and 7 or 9, Z = 20,
+    UDim2Size = UDim2.new(.5, -20, 0, 14),
+    UDim2Pos = UDim2.new(0, 18, 0, fY),
+    AlignX = Enum.TextXAlignment.Left,
+    Truncate = Enum.TextTruncate.AtEnd,
 })
-SepGrad.Parent = Sep
 
-local PlayerInfo = Instance.new("TextLabel")
-PlayerInfo.Size = UDim2.new(0.5, -30, 0, 16)
-PlayerInfo.Position = UDim2.new(0, 30, 0, 260)
-PlayerInfo.BackgroundTransparency = 1
-PlayerInfo.Text = "👤 " .. player.Name
-PlayerInfo.TextColor3 = Color3.fromRGB(100, 100, 140)
-PlayerInfo.TextSize = 10
-PlayerInfo.Font = Enum.Font.Gotham
-PlayerInfo.TextXAlignment = Enum.TextXAlignment.Left
-PlayerInfo.TextTruncate = Enum.TextTruncate.AtEnd
-PlayerInfo.ZIndex = 5
-PlayerInfo.TextTransparency = 1
-PlayerInfo.Parent = Main
+mkLabel(main, {
+    Text = "◂ " .. gameName, Color = C.textDk,
+    Size = mob and 7 or 9, Z = 20,
+    UDim2Size = UDim2.new(.5, -20, 0, 14),
+    UDim2Pos = UDim2.new(1, -18, 0, fY),
+    Anchor = Vector2.new(1, 0),
+    AlignX = Enum.TextXAlignment.Right,
+    Truncate = Enum.TextTruncate.AtEnd,
+})
 
-local GameInfo = Instance.new("TextLabel")
-GameInfo.Size = UDim2.new(0.5, -30, 0, 16)
-GameInfo.Position = UDim2.new(1, -30, 0, 260)
-GameInfo.AnchorPoint = Vector2.new(1, 0)
-GameInfo.BackgroundTransparency = 1
-GameInfo.Text = "🎮 " .. gameName
-GameInfo.TextColor3 = Color3.fromRGB(100, 100, 140)
-GameInfo.TextSize = 10
-GameInfo.Font = Enum.Font.Gotham
-GameInfo.TextXAlignment = Enum.TextXAlignment.Right
-GameInfo.TextTruncate = Enum.TextTruncate.AtEnd
-GameInfo.ZIndex = 5
-GameInfo.TextTransparency = 1
-GameInfo.Parent = Main
+mkLabel(main, {
+    Text = "EUGUNEWU://v3.0 • VOID PREMIUM", Color = C.textDk,
+    Size = mob and 6 or 7, Z = 20,
+    UDim2Size = UDim2.new(1, -36, 0, 12),
+    UDim2Pos = UDim2.new(.5, 0, 0, fY + 16),
+    Anchor = Vector2.new(.5, 0),
+})
 
-local VersionInfo = Instance.new("TextLabel")
-VersionInfo.Size = UDim2.new(1, -60, 0, 16)
-VersionInfo.Position = UDim2.new(0.5, 0, 0, 280)
-VersionInfo.AnchorPoint = Vector2.new(0.5, 0)
-VersionInfo.BackgroundTransparency = 1
-VersionInfo.Text = "v2.2.0 • EUGUNEWU"
-VersionInfo.TextColor3 = Color3.fromRGB(60, 60, 90)
-VersionInfo.TextSize = 9
-VersionInfo.Font = Enum.Font.Gotham
-VersionInfo.ZIndex = 5
-VersionInfo.TextTransparency = 1
-VersionInfo.Parent = Main
-
--- ════════════════════════════════════
---          PARTICLES
--- ════════════════════════════════════
-local function spawnParticle()
+-- ═══════════════════════════
+-- ANIMATIONS
+-- ═══════════════════════════
+local gradR = 0
+table.insert(conns, RS.Heartbeat:Connect(function(dt)
     if not alive then return end
-    pcall(function()
-        local p = Instance.new("Frame")
-        local s = math.random(2, 5)
-        p.Size = UDim2.new(0, s, 0, s)
-        p.Position = UDim2.new(math.random(5, 95) / 100, 0, 1.05, 0)
-        local cols = {
-            Color3.fromRGB(130, 80, 255),
-            Color3.fromRGB(80, 180, 255),
-            Color3.fromRGB(255, 80, 200),
-            Color3.fromRGB(100, 255, 200),
-        }
-        p.BackgroundColor3 = cols[math.random(1, #cols)]
-        p.BackgroundTransparency = math.random(40, 70) / 100
-        p.BorderSizePixel = 0
-        p.ZIndex = 3
-        p.Parent = Main
-        createCorner(p, 999)
-
-        local dur = math.random(20, 40) / 10
-        local t = tw(p, {
-            Position = UDim2.new(p.Position.X.Scale + (math.random(-20, 20) / 100), 0, -0.1, 0),
-            BackgroundTransparency = 1,
-            Size = UDim2.new(0, s * 0.3, 0, s * 0.3)
-        }, dur, Enum.EasingStyle.Linear)
-        t.Completed:Connect(function() p:Destroy() end)
-    end)
-end
-
--- ════════════════════════════════════
---          PROGRESS SETTER
--- ════════════════════════════════════
-local function setProgress(percent, status)
-    if status then StatusLabel.Text = status end
-    PercentLabel.Text = math.floor(percent) .. "%"
-    tw(ProgressFill, {
-        Size = UDim2.new(math.clamp(percent / 100, 0, 1), 0, 1, 0)
-    }, 0.25, Enum.EasingStyle.Quart)
-end
-
--- ════════════════════════════════════
---       BACKGROUND ANIMATIONS
--- ════════════════════════════════════
-local spinAngle, spinAngle2, gradRot = 0, 0, 0
-local spinConn = RunService.Heartbeat:Connect(function(dt)
-    if not alive then return end
-    spinAngle = (spinAngle + dt * 80) % 360
-    spinAngle2 = (spinAngle2 - dt * 50) % 360
-    gradRot = (gradRot + dt * 60) % 360
-    OuterRing.Rotation = spinAngle
-    OuterRing2.Rotation = spinAngle2
-    AccentGradient.Rotation = gradRot
-    BottomGradient.Rotation = gradRot + 180
-    FillGradient.Rotation = (gradRot * 0.5) % 360
-end)
-table.insert(activeConnections, spinConn)
+    gradR = (gradR + dt * 55) % 360
+    ring1.Rotation = gradR
+    ring2.Rotation = -gradR * .65
+    ring3.Rotation = gradR * .35
+    topGrad.Rotation = gradR
+    botGrad.Rotation = (gradR + 180) % 360
+    barGrad.Rotation = (gradR * .4) % 360
+end))
 
 task.spawn(function()
     while alive do
-        Shimmer.Position = UDim2.new(-0.2, 0, 0, 0)
-        tw(Shimmer, {Position = UDim2.new(1.1, 0, 0, 0)}, 0.8, Enum.EasingStyle.Linear)
-        task.wait(1.5)
-    end
-end)
-
-local pTimer = 0
-local pConn = RunService.Heartbeat:Connect(function(dt)
-    if not alive then return end
-    pTimer = pTimer + dt
-    if pTimer >= 0.35 then
-        pTimer = 0
-        spawnParticle()
-    end
-end)
-table.insert(activeConnections, pConn)
-
-task.spawn(function()
-    while alive do
-        tw(InnerCircle, {Size = UDim2.new(0, 62, 0, 62)}, 0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-        task.wait(0.6)
-        tw(InnerCircle, {Size = UDim2.new(0, 55, 0, 55)}, 0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-        task.wait(0.6)
+        if blinkLbl.Parent then blinkLbl.Visible = not blinkLbl.Visible end
+        task.wait(.5)
     end
 end)
 
 task.spawn(function()
-    local hue = 0
     while alive do
-        hue = (hue + 0.003) % 1
-        OuterRingStroke.Color = Color3.fromHSV(hue, 0.6, 0.85)
-        MainStroke.Color = Color3.fromHSV((hue + 0.15) % 1, 0.5, 0.7)
-        task.wait(0.03)
+        if not statusDot.Parent then break end
+        tw(statusDot, {BackgroundTransparency = .6}, .6)
+        task.wait(.6)
+        tw(statusDot, {BackgroundTransparency = 0}, .6)
+        task.wait(.6)
     end
 end)
 
--- ════════════════════════════════════
---          INTRO ANIMATION
--- ════════════════════════════════════
-Main.Size = UDim2.new(0, 420, 0, 0)
-Main.BackgroundTransparency = 1
+task.spawn(function()
+    while alive do
+        if not circle.Parent then break end
+        tw(circle, {Size = UDim2.new(0, 70, 0, 70)}, .8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+        task.wait(.8)
+        tw(circle, {Size = UDim2.new(0, 62, 0, 62)}, .8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+        task.wait(.8)
+    end
+end)
 
-tw(Overlay, {BackgroundTransparency = 0.4}, 0.4, Enum.EasingStyle.Quad)
-task.wait(0.1)
+task.spawn(function()
+    while alive do
+        if not shimmer.Parent then break end
+        shimmer.Position = UDim2.new(-.15, 0, 0, 0)
+        tw(shimmer, {Position = UDim2.new(1.1, 0, 0, 0)}, .65, Enum.EasingStyle.Linear)
+        task.wait(1.8)
+    end
+end)
 
-tw(Main, {Size = UDim2.new(0, 420, 0, 310), BackgroundTransparency = 0}, 0.4, Enum.EasingStyle.Back)
-task.wait(0.25)
-
-tw(AccentLine, {BackgroundTransparency = 0}, 0.2)
-tw(BottomLine, {BackgroundTransparency = 0.3}, 0.2)
-
-local fadeEls = {LogoLetter, TitleLabel, SubtitleLabel, StatusLabel, PercentLabel, PlayerInfo, GameInfo, VersionInfo}
-for i, obj in ipairs(fadeEls) do
-    task.delay(i * 0.03, function()
-        tw(obj, {TextTransparency = 0}, 0.2)
-    end)
-end
-
-tw(InnerCircle, {BackgroundTransparency = 0}, 0.2)
-tw(ProgressBG, {BackgroundTransparency = 0}, 0.2)
-tw(Sep, {BackgroundTransparency = 0.3}, 0.2)
-
-task.wait(0.3)
-
--- ════════════════════════════════════
---          EXIT ANIMATION
--- ════════════════════════════════════
-local function exitAnimation(callback)
-    cleanupAll()
-
-    for _, obj in pairs(Main:GetDescendants()) do
+task.spawn(function()
+    while alive do
+        task.wait(mob and .55 or .4)
+        if not alive or not main.Parent then break end
         pcall(function()
-            if obj:IsA("TextLabel") then
-                tw(obj, {TextTransparency = 1}, 0.15)
-            elseif obj:IsA("Frame") then
-                tw(obj, {BackgroundTransparency = 1}, 0.15)
-            end
+            local s = math.random(2, 4)
+            local p = Instance.new("Frame")
+            p.Size = UDim2.new(0, s, 0, s)
+            p.Position = UDim2.new(math.random(5, 95) / 100, 0, 1.05, 0)
+            p.BackgroundColor3 = ({C.accent, C.cyan, C.magenta})[math.random(1, 3)]
+            p.BackgroundTransparency = .45
+            p.BorderSizePixel = 0
+            p.ZIndex = 15
+            p.Parent = main
+            corner(p, 999)
+            local t2 = tw(p, {
+                Position = UDim2.new(p.Position.X.Scale + math.random(-12, 12) / 100, 0, -.08, 0),
+                BackgroundTransparency = 1,
+                Size = UDim2.new(0, 1, 0, 1),
+            }, math.random(25, 45) / 10, Enum.EasingStyle.Linear)
+            t2.Completed:Connect(function() pcall(function() p:Destroy() end) end)
         end)
     end
+end)
 
-    task.wait(0.1)
+-- ═══════════════════════════
+-- GLITCH TEXT
+-- ═══════════════════════════
+local glyphs = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*<>{}[]|"
 
-    tw(Main, {
-        Size = UDim2.new(0, 420, 0, 0),
-        BackgroundTransparency = 1
-    }, 0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-
-    tw(Overlay, {BackgroundTransparency = 1}, 0.3)
-
-    task.wait(0.3)
-    ScreenGui:Destroy()
-
-    if callback then callback() end
+local function glitch(lbl, target, dur)
+    dur = dur or .35
+    local len = #target
+    local steps = math.max(5, math.floor(dur / .025))
+    task.spawn(function()
+        for i = 1, steps do
+            if not alive then break end
+            local rev = math.floor(len * (i / steps))
+            local t = ""
+            for j = 1, len do
+                if j <= rev then
+                    t = t .. target:sub(j, j)
+                else
+                    local ri = math.random(1, #glyphs)
+                    t = t .. glyphs:sub(ri, ri)
+                end
+            end
+            lbl.Text = t
+            task.wait(.025)
+        end
+        lbl.Text = target
+    end)
 end
 
-local function showSuccess(name)
-    tw(ProgressFill, {BackgroundColor3 = Color3.fromRGB(50, 210, 100)}, 0.2)
-    tw(OuterRingStroke, {Color = Color3.fromRGB(50, 210, 100)}, 0.2)
-    tw(LogoLetter, {TextColor3 = Color3.fromRGB(50, 210, 100)}, 0.2)
-    LogoLetter.Text = "✓"
-    LogoLetter.TextSize = 28
-    StatusLabel.TextColor3 = Color3.fromRGB(50, 210, 100)
-    StatusLabel.Text = "✅ " .. name .. " Loaded!"
+-- ═══════════════════════════
+-- SETTERS
+-- ═══════════════════════════
+local function setP(v, s)
+    if s then statusLbl.Text = s end
+    pctLbl.Text = math.floor(v) .. "%"
+    tw(barFill, {Size = UDim2.new(math.clamp(v / 100, 0, 1), 0, 1, 0)}, .25, Enum.EasingStyle.Quart)
 end
 
-local function showError(msg)
-    tw(ProgressFill, {BackgroundColor3 = Color3.fromRGB(220, 50, 50)}, 0.2)
-    tw(OuterRingStroke, {Color = Color3.fromRGB(220, 50, 50)}, 0.2)
-    tw(LogoLetter, {TextColor3 = Color3.fromRGB(220, 50, 50)}, 0.2)
-    LogoLetter.Text = "✕"
-    LogoLetter.TextSize = 28
-    StatusLabel.TextColor3 = Color3.fromRGB(220, 100, 100)
-    StatusLabel.Text = msg
+local function showOk(name)
+    tw(barFill, {BackgroundColor3 = C.ok}, .25)
+    tw(ring1s, {Color = C.ok, Transparency = .1}, .25)
+    tw(circleS, {Color = C.ok, Transparency = .15}, .25)
+    tw(circle, {BackgroundColor3 = Color3.fromRGB(12, 28, 18)}, .25)
+    tw(innerGlow, {BackgroundColor3 = C.ok, BackgroundTransparency = .85}, .25)
+    tw(statusDot, {BackgroundColor3 = C.ok}, .2)
+    logoE.Text = "✓"
+    logoE.TextSize = mob and 30 or 34
+    tw(logoE, {TextColor3 = C.ok}, .2)
+    statusLbl.TextColor3 = C.ok
+    glitch(statusLbl, "█ " .. name:upper() .. " ── LOADED █", .3)
+    addLog("[OK] script loaded ─── DONE", C.ok)
 end
 
--- ════════════════════════════════════════════
---   MAIN LOADING (SCRIPT SUDAH DI-FETCH!)
--- ════════════════════════════════════════════
+local function showErr(msg)
+    tw(barFill, {BackgroundColor3 = C.err}, .25)
+    tw(ring1s, {Color = C.err, Transparency = .1}, .25)
+    tw(circleS, {Color = C.err, Transparency = .15}, .25)
+    tw(circle, {BackgroundColor3 = Color3.fromRGB(28, 10, 10)}, .25)
+    tw(innerGlow, {BackgroundColor3 = C.err, BackgroundTransparency = .85}, .25)
+    tw(statusDot, {BackgroundColor3 = C.err}, .2)
+    logoE.Text = "✕"
+    logoE.TextSize = mob and 30 or 34
+    tw(logoE, {TextColor3 = C.err}, .2)
+    statusLbl.TextColor3 = C.err
+    glitch(statusLbl, "█ " .. msg:upper():sub(1, 24) .. " █", .3)
+    addLog("[ERR] " .. msg, C.err)
+end
+
+-- ═══════════════════════════
+-- EXIT
+-- ═══════════════════════════
+local function doExit(cb)
+    alive = false
+    for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
+
+    for _, o in pairs(main:GetDescendants()) do
+        pcall(function()
+            if o:IsA("TextLabel") then tw(o, {TextTransparency = 1}, .15) end
+            if o:IsA("Frame") and o ~= main then tw(o, {BackgroundTransparency = 1}, .15) end
+            if o:IsA("UIStroke") then tw(o, {Transparency = 1}, .15) end
+        end)
+    end
+    task.wait(.12)
+
+    tw(main, {Size = UDim2.new(0, W, 0, 0), BackgroundTransparency = 1}, .25, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+    tw(mainStk, {Transparency = 1}, .18)
+    tw(overlay, {BackgroundTransparency = 1}, .3)
+    task.wait(.3)
+
+    pcall(function() SG:Destroy() end)
+    if cb then cb() end
+end
+
+-- ═══════════════════════════════════════
+-- INTRO ANIMATION
+-- ═══════════════════════════════════════
+main.Visible = true
+main.Size = UDim2.new(0, W, 0, 0)
+main.BackgroundTransparency = 1
+
+tw(overlay, {BackgroundTransparency = .5}, .3, Enum.EasingStyle.Quad)
+task.wait(.08)
+
+tw(main, {Size = UDim2.new(0, W, 0, H), BackgroundTransparency = 0}, .4, Enum.EasingStyle.Back)
+task.wait(.35)
+
+glitch(titleLbl, "EUGUNEWU HUB", .35)
+task.wait(.2)
+
+-- ═══════════════════════════════════════════════════════
+-- LOADING SEQUENCE
+--
+-- Alur:
+-- 1. Tampilkan log satu-satu (bisa dibaca)
+-- 2. Progress bar jalan smooth ngikutin download
+-- 3. Begitu download SELESAI → compile → success → exit
+-- 4. Script LANGSUNG jalan setelah exit
+-- ═══════════════════════════════════════════════════════
 
 if scriptUrl then
-    setProgress(10, "🔍 Detected: " .. gameName)
-    task.wait(0.2)
 
-    setProgress(30, "📡 Connecting...")
-    task.wait(0.15)
+    -- ── Step 1: Boot ──
+    addLog("[BOOT] eugunewu://loader_v3.0", C.textLo)
+    setP(3, "▸ BOOTING SYSTEM...")
+    task.wait(.35)
 
-    setProgress(50, "📥 Downloading...")
+    -- ── Step 2: Device scan ──
+    addLog("[SCAN] detecting device...", C.textLo)
+    setP(8, "▸ SCANNING DEVICE...")
+    task.wait(.3)
 
-    -- Tunggu fetch selesai (sudah berjalan dari awal!)
-    local waited = 0
-    while not fetchDone and waited < 15 do
-        task.wait(0.05)
-        waited = waited + 0.05
-        local fakeP = math.min(50 + (waited / 15) * 40, 90)
-        setProgress(fakeP, "⚡ Downloading...")
+    addLog("[SCAN] device: " .. (mob and "MOBILE" or "DESKTOP") .. " ─── OK", C.ok)
+    setP(12)
+    task.wait(.25)
+
+    -- ── Step 3: Game detection ──
+    addLog("[FIND] searching database...", C.textLo)
+    setP(18, "▸ SEARCHING DATABASE...")
+    task.wait(.3)
+
+    addLog("[LOCK] target: " .. gameName:lower():gsub(" ", "_") .. " ─── FOUND", C.accent)
+    glitch(statusLbl, "▸ TARGET: " .. gameName:upper(), .25)
+    setP(25)
+    task.wait(.35)
+
+    -- ── Step 4: Download (ikutin real fetch) ──
+    addLog("[NET] connecting to server...", C.textLo)
+    setP(30, "▸ CONNECTING...")
+    task.wait(.25)
+
+    local lastPhase = ""
+    local currentP = 30
+    local dlStarted = false
+
+    while not fetchDone do
+        task.wait(.06)
+
+        -- Phase-based log updates (cuma muncul sekali per phase)
+        if fetchPhase ~= lastPhase then
+            lastPhase = fetchPhase
+            if fetchPhase == "connecting" then
+                addLog("[NET] handshake...", C.textLo)
+                statusLbl.Text = "▸ ESTABLISHING CONNECTION..."
+            elseif fetchPhase == "downloading" then
+                addLog("[AUTH] connection ─── OK", C.ok)
+                task.wait(.15)
+                addLog("[PULL] downloading payload...", C.textLo)
+                statusLbl.Text = "▸ DOWNLOADING..."
+                dlStarted = true
+            elseif fetchPhase == "compiling" then
+                addLog("[RECV] payload received ─── OK", C.ok)
+                statusLbl.Text = "▸ COMPILING..."
+            end
+        end
+
+        -- Progress naik pelan, makin pelan mendekati 85%
+        local target = 85
+        local remaining = target - currentP
+        local speed = remaining * .015
+        speed = math.max(speed, .1)
+        currentP = math.min(currentP + speed, target)
+        setP(currentP)
+
+        -- Update persen di status
+        if dlStarted and math.floor(currentP) % 8 == 0 then
+            pctLbl.Text = math.floor(currentP) .. "%"
+        end
     end
 
-    if fetchFailed or not fetchDone then
-        setProgress(100, "")
-        task.wait(0.1)
-        showError("❌ " .. fetchErrorMsg)
-        task.wait(1.5)
-        exitAnimation()
+    -- ── Download selesai ──
+    if fetchErr then
+        addLog("[FAIL] " .. fetchErr, C.err)
+        setP(100)
+        task.wait(.15)
+        showErr(fetchErr)
+        task.wait(2)
+        doExit()
         return
     end
 
-    setProgress(95, "🔧 Preparing...")
-    task.wait(0.1)
+    -- ── Step 5: Post-download ──
+    addLog("[COMP] bytecode compile ─── OK", C.ok)
+    setP(90, "▸ COMPILING BYTECODE...")
+    task.wait(.3)
 
-    setProgress(100, "✅ Ready!")
-    task.wait(0.1)
+    addLog("[VRFY] integrity check ─── PASS", C.ok)
+    setP(95, "▸ VERIFYING INTEGRITY...")
+    task.wait(.25)
 
-    showSuccess(gameName)
-    task.wait(0.4)
+    addLog("[PREP] sandbox ready ─── OK", C.ok)
+    setP(100, "▸ READY TO LAUNCH")
+    task.wait(.2)
 
-    -- LANGSUNG EXIT DAN JALANKAN SCRIPT
-    exitAnimation(function()
-        local ok, err = pcall(compiledFunc)
-        if not ok then
-            warn("[EUGUNEWU HUB] Execution Error: " .. tostring(err))
-        end
+    -- ── Step 6: Success ──
+    showOk(gameName)
+    task.wait(.7)
+
+    -- ── Exit → Script langsung jalan ──
+    doExit(function()
+        local ok2, e = pcall(compiled)
+        if not ok2 then warn("[EUGUNEWU] " .. tostring(e)) end
     end)
 
 else
-    setProgress(20, "🔍 Detecting game...")
-    task.wait(0.25)
+    -- ── Game not supported ──
+    addLog("[BOOT] eugunewu://loader_v3.0", C.textLo)
+    setP(8, "▸ BOOTING...")
+    task.wait(.35)
 
-    setProgress(60, "📂 Searching database...")
-    task.wait(0.2)
+    addLog("[SCAN] game_id: " .. tostring(gameId), C.textLo)
+    setP(25, "▸ SCANNING GAME...")
+    task.wait(.3)
 
-    setProgress(100, "")
-    task.wait(0.1)
+    addLog("[SRCH] searching registry...", C.textLo)
+    setP(50, "▸ SEARCHING DATABASE...")
+    task.wait(.3)
 
-    showError("❌ Game not supported!")
-    task.wait(0.3)
+    addLog("[SRCH] matching entries...", C.textLo)
+    setP(75, "▸ MATCHING...")
+    task.wait(.25)
 
-    StatusLabel.TextSize = 11
-    StatusLabel.Text = "Game ID " .. tostring(gameId) .. " not in database"
+    addLog("[FAIL] game not in registry", C.err)
+    setP(100)
+    task.wait(.15)
 
-    task.wait(2)
-    exitAnimation()
+    showErr("GAME NOT SUPPORTED")
+    task.wait(.4)
+
+    addLog("[INFO] id " .. tostring(gameId) .. " ── no match", C.warn)
+    glitch(statusLbl, "█ ID " .. tostring(gameId) .. " NOT IN DB █", .3)
+
+    task.wait(2.5)
+    doExit()
 end
