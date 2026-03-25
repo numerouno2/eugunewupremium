@@ -22,6 +22,7 @@ local Games = {
     [93978595733734]  = { url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/ViolenceDistrict.lua", name = "Violence District" },
     [72774564502867]  = { url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/Lengkapikata.lua", name = "Lengkapi Kata" },
     [78632820802305]  = { url = "https://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/IndoStrike.lua", name = "Indo Strike" },
+    [6911148748]  = { url = "http://raw.githubusercontent.com/numerouno2/gamesdump/refs/heads/main/CDID.lua", name = "CDID" },
 }
 
 local cur = Games[gameId]
